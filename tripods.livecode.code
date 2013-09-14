@@ -11,6 +11,10 @@ local sFootLanding2Locs
 local sFootLanding3Locs
 
 local sMovesCounter
+local sTotalMoves
+
+global sLevel
+local sLastLevelCompleted
 
 local sJumpAnimateSpeed
 local sPivotAnimateSpeed
@@ -25,6 +29,7 @@ local sCollision
 
 on preOpenStack
    set the accelleratedRendering of this stack to true
+   set the defaultFolder to specialFolderPath("documents") // Where we write files to (good for iOS and Mac OS X)
    start using stack "Helper"
 end preOpenStack
 
@@ -32,7 +37,13 @@ on openStack
    if "animationEngine" is not among the lines of the stacksInUse then
       start using stack "animationEngine"
    end if
+   
+   put URL ("file:moves.txt") into sTotalMoves // Get total moves used from file and store in script local
 end openStack
+
+on closeStack
+   put sTotalMoves into URL ("file:moves.txt") // Store number of moves
+end closeStack
 
 on setupLevel
    
@@ -64,15 +75,19 @@ on setupLevel
          else if el is 5 then -- Landing 1
             clone button "landing1_src"
             set the name of it to "landing1"
+            set the class of it to "landing"
          else if el is 6 then -- Landing 2
             clone button "landing2_src"
             set the name of it to "landing2"
+            set the class of it to "landing"
          else if el is 7 then -- Landing 3
             clone button "landing3_src"
             set the name of it to "landing3"
+            set the class of it to "landing"
          else if el is 8 then -- Pivot
             clone button "pivot_src"
             set the name of it to "pivot"
+            set the visible of it to false
          end if
          
          if el is not 0 then
@@ -91,16 +106,21 @@ on setupLevel
    // Clone shadow buttons for detecting collisons during pivots
    clone button "shadowFoot1_src"
    set the name of it to "shadowFoot1"
+   set the class of it to "shadowFoot"
    clone button "shadowFoot2_src"
    set the name of it to "shadowFoot2"
+   set the class of it to "shadowFoot"
    clone button "shadowFoot3_src"
    set the name of it to "shadowFoot3"
+   set the class of it to "shadowFoot"
+   
+   ## Clone other bits of UI
    
    // Bring sprite to top
-   set the layer of button "pivot" to top
    set the layer of button "foot3" to top
    set the layer of button "foot2" to top
-   set the layer of button "foot1" to top     
+   set the layer of button "foot1" to top
+   set the layer of button "pivot" to top
    
    ## Store the starting positions of the feet
    
@@ -153,8 +173,66 @@ on setupLevel
       end if
    end repeat
    
+   set the label of button "number_moves_remaining" to sTotalMoves
+   
 end setupLevel
 
+// Hide the sprite
+
+on hideSprite
+   set the vis of button "foot1" to false
+   set the vis of button "foot2" to false
+   set the vis of button "foot3" to false
+end hideSprite
+
+// Flash the sprite
+
+on aeWrapper pAEFunc, pMilliSecs
+   
+   if pAEFunc is "fadeIn" then
+      aeLockMoves
+      aeFadeIn the long id of btn "foot1",pMilliSecs
+      aeFadeIn the long id of btn "foot2",pMilliSecs
+      aeFadeIn the long id of btn "foot3",pMilliSecs
+      aeUnlockMoves
+   end if
+   
+   if pAEFunc is "fadeOut" then
+      aeLockMoves
+      aeFadeOut the long id of btn "foot1",pMilliSecs
+      aeFadeOut the long id of btn "foot2",pMilliSecs
+      aeFadeOut the long id of btn "foot3",pMilliSecs
+      aeUnlockMoves
+   end if
+   
+end aeWrapper
+
+on flashSprite
+   
+   put 200 into flashSpeed
+   
+   // Flash pivot
+   put the long ID of btn "pivot" into tPivot
+   send "aefadeIn tPivot, flashSpeed" to me in 750 millisecs
+   
+   // Flash feet   
+   send "aeWrapper fadeIn, flashSpeed" to me in 450 millisecs
+   send "aeWrapper fadeIn, flashSpeed" to me in 750 millisecs
+   
+end flashSprite
+
+on clearLevel
+   
+   // Delete level objects from card
+   put the number of buttons of this card into tCount
+   repeat with x = tCount down to 1
+        if the class of button x of this card is "foot" or the class of button x of this card is "landing" or the class of button x of this card is "shadowFoot" or the short name of button x of this card is "block" or the short name of button x of this card is "pivot" then
+             delete button x of this card
+        end if
+   end repeat
+   
+end clearLevel
+   
 on activateScreenUpdates
    
    stopUpdatingTheScreen
@@ -202,16 +280,14 @@ local sGameRunning
 ###
 
 on preOpenStack
-   ## Set up game
    put "preOpenStack" into message box
 end preOpenStack
 
 on startGame
-   setupLevel
    
    activateScreenUpdates
-   put true into sGameRunning
-   ## Reset the game
+   put true into sGameRunning 
+   flashSprite
    
 end startGame
 
@@ -225,9 +301,25 @@ on endGame
    
    -- move button "foot1" to 256,218 in 10 ticks
    
+   //put 10000 into sTotalMoves
+   put 0 into sMovesCounter
+   
+   //set the label of button "number_moves_remaining" to sTotalMoves
+   set the label of button "moves_value" to sMovesCounter
+   
    put false into sGameRunning
    
 end endGame
+
+on incrMoves
+   
+   put sMovesCounter + 1 into sMovesCounter // sMovesCounter++
+   set the label of button "moves_value" to sMovesCounter // Amend moves counter
+   
+   put sTotalMoves - 1 into sTotalMoves // sTotalMoves--
+   set the label of button "number_moves_remaining" to sTotalMoves // Amend total moves counter
+    
+end incrMoves
 
 on goJump pX, pY, pPivotX, pPivotY, pFootShortName
    
@@ -257,7 +349,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
       end if
       
    end if  
-
+   
    put "overshoot" into tJumpEffect // Default jump easing effect
    
    put item 1 of tPreMoveFootPos into tFootPrevX // Get X coord of previous foot loc
@@ -265,31 +357,55 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
    
    if tBoundaryHit then // If a boundary has been hit
       
-      put "bounce" into tEffect
+      put "bounce" into tEffect      
       
-      aeMoveTo the long id of btn pFootShortName, pX, pY, sJumpAnimateSpeed / 3.5, "" // Move to boundary
+      // Get mid-point between other two feet
+      if pFootShortName is "foot1" then
+         put getMidPoint(the loc of btn "foot2", the loc of btn "foot3") into tMidPoint
+      else if pFootShortName is "foot2" then
+         put getMidPoint(the loc of btn "foot1", the loc of btn "foot3") into tMidPoint
+      else if pFootShortName is "foot3" then
+         put getMidPoint(the loc of btn "foot1", the loc of btn "foot2") into tMidPoint
+      end if
+      
+      // Fade out pivot
+      put the long ID of btn "pivot" into tPivot      
+      send "aeFadeOut tPivot, 100" to me in 1 millisecs
+  
+      aeMoveTo the long id of btn pFootShortName, item 1 of tMidPoint, item 2 of tMidPoint, sJumpAnimateSpeed / 3.5, "" // Move to boundary
       send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, tEffect" to btn pFootShortName in 200 milliseconds // Jump back after wait
-
+      send "aeFadeIn tPivot, 150" to me in 300 millisecs // Fade pivot back in
+            
    else // Otherwise, move to new position
       
+      // Fade out pivot
+      put the long ID of btn "pivot" into tPivot      
+      send "aeFadeOut tPivot, 100" to me in 1 millisecs
+            
       animateFoot pFootShortName
       
       aeLockMoves
       aeMoveTo the long id of btn pFootShortName,pX,pY,sJumpAnimateSpeed,tJumpEffect
       aeUnlockMoves
-      
+           
    end if
    
    // Detect collision with block
    set the loc of btn "shadowFoot1" to pX,pY // Set position of a shadow foot to check for imminent collisions  
    put detectCollision() into tJumpCollide
    
-   if tJumpCollide then // If the foot will jump onto a block
+   if tJumpCollide and not tBoundaryHit then // If the foot will jump onto a block
       put "overshoot" into tEffect
       send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, tEffect" to btn pFootShortName in 700 milliseconds // Call jumpBack() after a short interval
+      send "aeFadeIn tPivot, 150" to me in 800 millisecs // Fade pivot back in
    end if
    
    if not tBoundaryHit and not tJumpCollide then // If a boundary hasn't been hit, or the foot hasn't jumped onto a block
+      
+      send "aeFadeIn tPivot, 150" to me in sJumpAnimateSpeed millisecs
+      
+      send "incrMoves" to this card in sJumpAnimateSpeed milliseconds // Increment moves counter
+      
       aeMoveTo the long id of btn "pivot", pPivotX,pPivotY,sJumpAnimateSpeed // Move pivot
       
       if pFootShortName is "foot1" then // Update script-level loc for relevant foot
@@ -305,6 +421,10 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
    end if
    
 end goJump
+
+on adjustPivot
+   
+end adjustPivot
 
 ## Animates lift and drop of foot
 
@@ -365,11 +485,8 @@ on jump pFootLoc, pFootShortName
       put item 1 of the loc of button pFootShortName into tX // Get current x pos of the swiped foot
       put item 2 of the loc of button pFootShortName into tY // Get current y pos of the swiped foot
       put item 1 of the loc of button "pivot" into tPivotX // Get current x pos of the pivot
-      put item 2 of the loc of button "pivot" into tPivotY // Get current y pos of the pivot
-      
-      //answer tAngles[1]
-      //answer tAngles[2]
-      
+      put item 2 of the loc of button "pivot" into tPivotY // Get current y pos of the pivot      
+          
       // Read angles and work out in which direct the foot needs to jump
       if tAngles[1] is -117 and tAngles[2] is -63 or tAngles[2] is -117 and tAngles[1] is -63 then // N    
          put tY - (sCellWidth * 4) into tY // Amend the y pos of swiped foot
@@ -421,10 +538,6 @@ on jump pFootLoc, pFootShortName
    end if
 end jump
 
-function blockHit 
-   
-end blockHit
-
 on resetShowFeet
    set the loc of btn "shadowFoot1" to 0,0
    set the loc of btn "shadowFoot2" to 0,0
@@ -444,10 +557,7 @@ on pivot
       
       split tLastStationaryPos1 by ","
       split tLastStationaryPos2 by ","
-      split tLastStationaryPos3 by ","
-      
-      put sMovesCounter + 1 into sMovesCounter // sMovesCounter++
-      set the label of button "moves_value" to sMovesCounter // Amend moves counter
+      split tLastStationaryPos3 by ","     
       
       put getAngleBetweenPoints(the loc of button "foot1", the loc of button "foot2") into tAngle12
       put getAngleBetweenPoints(the loc of button "foot1", the loc of button "foot3") into tAngle13
@@ -582,11 +692,19 @@ on pivot
          
       else // If no collision
          
+         put the long ID of btn "pivot" into tPivot
+         
+         send "aeFadeOut tPivot, 100" to me in 1 millisecs
+         
          aeLockMoves
          aeMoveTo the long id of btn "foot1",tFoot1x,tFoot1y,sPivotAnimateSpeed,"overshoot"
          aeMoveTo the long id of btn "foot2",tFoot2x,tFoot2y,sPivotAnimateSpeed,"overshoot"
          aeMoveTo the long id of btn "foot3",tFoot3x,tFoot3y,sPivotAnimateSpeed,"overshoot"
          aeUnlockMoves
+         
+         send "aeFadeIn tPivot, 150" to me in 125 millisecs // Fade in pivot
+         
+         send "incrMoves" to this card in sPivotAnimateSpeed milliseconds // Increment moves counter
          
       end if
       
@@ -633,6 +751,23 @@ on jumpBack pTarget,pX,pY,pEffect
    aeMoveTo the long id of btn pTarget,pX,pY,sJumpAnimateSpeed,pEffect
 end jumpBack
 
+// Get sprite centroid
+function positionPivot
+   /*put item 1 of the loc of btn "foot1" into x1
+   put item 1 of the loc of btn "foot2" into x2
+   put item 1 of the loc of btn "foot3" into x3
+   
+   put item 2 of the loc of btn "foot1" into y1
+   put item 2 of the loc of btn "foot2" into y2
+   put item 2 of the loc of btn "foot3" into y3
+   
+   put round((x1 + x2 + x3) / 3) into tCentroidX
+   put round((y1 + y2 + y3) / 3) into tCentroidY
+   
+   return tCentroidX,tCentroidY*/
+   
+end positionPivot
+
 on updateScreen
    
    if sGameRunning is true then
@@ -645,7 +780,7 @@ on updateScreen
       end if
       
       if not sAnimating then
-         
+
          ## Check for win         
          
          // Reset check for feet landing correctly
