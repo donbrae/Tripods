@@ -13,7 +13,7 @@ local sFootLanding3Locs
 local sMovesCounter
 local sTotalMoves
 
-global sLevel
+global gLevel
 local sLastLevelCompleted
 
 local sJumpAnimateSpeed
@@ -23,9 +23,7 @@ local sCurrentAnimation // Pivot or jump
 local sCollision
 
 ## Stack custom properties: 
-# accelleratedRendering
-# pivotSequence: ordered sequence of moves each foot makes
-# foot1Pos, foot2Pos, foot3Pos: each foot'sput 20 into myBox["dollars"] current position in this sequence
+// accelleratedRendering
 
 on preOpenStack
    set the accelleratedRendering of this stack to true
@@ -34,16 +32,47 @@ on preOpenStack
 end preOpenStack
 
 on openStack
+   
    if "animationEngine" is not among the lines of the stacksInUse then
       start using stack "animationEngine"
    end if
    
    put URL ("file:moves.txt") into sTotalMoves // Get total moves used from file and store in script local
+   retrieveHighScores
+   
 end openStack
 
 on closeStack
-   put sTotalMoves into URL ("file:moves.txt") // Store number of moves
+   
+   put sTotalMoves into URL ("file:moves.txt") // Store number of moves remaining   
+   saveHighScores
+   
 end closeStack
+
+on saveHighScores
+   
+   // Get high scores custom property as an array
+   put the customProperties["cHighScores"] of the current stack into tHighScores
+   
+   // Cycle through the array and format for saving to file
+   repeat for each line tKey in the keys of tHighScores
+      put tKey & ":" & tHighScores[tKey] & return after tArrayContents
+   end repeat
+   
+   put tArrayContents into URL ("file:highscores.txt") // Save to file
+   
+end saveHighScores
+
+## Read high scores from file
+on retrieveHighScores
+   
+   if there is a file "highscores.txt" then      
+      put URL ("file:highscores.txt") into tHighScores // Get text file   
+      split tHighScores by return and ":" // Split into array   
+      set the customProperties["cHighScores"] of this stack to tHighScores // Set the array to value of cHighScores custom property
+   end if   
+   
+end retrieveHighScores
 
 on setupLevel
    
@@ -284,6 +313,8 @@ on preOpenStack
 end preOpenStack
 
 on startGame
+   
+   put gLevel into msg box
    
    activateScreenUpdates
    put true into sGameRunning 
@@ -690,11 +721,11 @@ on pivot
          nudge "foot2", tFoot2x, tFoot2y, sFoot2Loc["x"], sFoot2Loc["y"]
          nudge "foot3", tFoot3x, tFoot3y, sFoot3Loc["x"], sFoot3Loc["y"]
          
-      else // If no collision
+      else if the visible of btn "pivot" then // If no collision and pivot is visible
          
          put the long ID of btn "pivot" into tPivot
          
-         send "aeFadeOut tPivot, 100" to me in 1 millisecs
+         //send "aeFadeOut tPivot, 100" to me in 1 millisecs
          
          aeLockMoves
          aeMoveTo the long id of btn "foot1",tFoot1x,tFoot1y,sPivotAnimateSpeed,"overshoot"
@@ -702,7 +733,7 @@ on pivot
          aeMoveTo the long id of btn "foot3",tFoot3x,tFoot3y,sPivotAnimateSpeed,"overshoot"
          aeUnlockMoves
          
-         send "aeFadeIn tPivot, 150" to me in 125 millisecs // Fade in pivot
+         //send "aeFadeIn tPivot, 150" to me in 125 millisecs // Fade in pivot
          
          send "incrMoves" to this card in sPivotAnimateSpeed milliseconds // Increment moves counter
          
@@ -751,20 +782,33 @@ on jumpBack pTarget,pX,pY,pEffect
    aeMoveTo the long id of btn pTarget,pX,pY,sJumpAnimateSpeed,pEffect
 end jumpBack
 
+on levelWin  
+   
+   stopGame
+   
+   put "You've won the level!" into tWinMsg
+   
+   ## Check for high score
+   
+   put false into tNewHighScore      
+   put the cHighScores[gLevel] of this stack into tCurrentHighScore // Get previous high score
+   
+   if sMovesCounter < tCurrentHighScore then // If we've completed the level in fewer moves than our previous attempts
+      put true into tNewHighScore // Flag that this is a new high score
+   end if
+   
+   if tNewHighScore then // If it's a new high score
+      set the cHighScores[gLevel] of this stack to sMovesCounter // Set the high score for this level to current value of moves counter
+      put tWinMsg & " You also also achieved a new personal best for this level of " & sMovesCounter & " moves!" into tWinMsg
+   end if
+   
+   answer tWinMsg
+   
+end levelWin
+
 // Get sprite centroid
 function positionPivot
-   /*put item 1 of the loc of btn "foot1" into x1
-   put item 1 of the loc of btn "foot2" into x2
-   put item 1 of the loc of btn "foot3" into x3
-   
-   put item 2 of the loc of btn "foot1" into y1
-   put item 2 of the loc of btn "foot2" into y2
-   put item 2 of the loc of btn "foot3" into y3
-   
-   put round((x1 + x2 + x3) / 3) into tCentroidX
-   put round((y1 + y2 + y3) / 3) into tCentroidY
-   
-   return tCentroidX,tCentroidY*/
+
    
 end positionPivot
 
@@ -810,7 +854,7 @@ on updateScreen
          end repeat
          
          if tFoot1LandSuccess and tFoot2LandSuccess and tFoot3LandSuccess then
-            put "win " & random(100) into msg box
+            levelWin
          end if
          
       end if
