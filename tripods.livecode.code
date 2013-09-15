@@ -5,6 +5,9 @@ local sCellWidth
 local sFoot1Loc
 local sFoot2Loc
 local sFoot3Loc
+local sPivotLoc
+
+local sFootPivotCount // Keep track of how many feet have moved in pivot move (animation happens asynchronously and AE only offers a single callback out of the box)
 
 local sFootLanding1Locs // Array of the loc(s) that foot 1 needs to be at to win
 local sFootLanding2Locs
@@ -37,8 +40,14 @@ on openStack
       start using stack "animationEngine"
    end if
    
-   put URL ("file:moves.txt") into sTotalMoves // Get total moves used from file and store in script local
+   if there is a file "moves.txt" then
+      put URL ("file:moves.txt") into sTotalMoves // Get total moves used from file and store in script local
+   else
+      put 10000 into sTotalMoves // If no file, then put to 10000
+   end if
+   
    retrieveHighScores
+   
    
 end openStack
 
@@ -146,21 +155,25 @@ on setupLevel
    ## Clone other bits of UI
    
    // Bring sprite to top
-   set the layer of button "foot3" to top
-   set the layer of button "foot2" to top
-   set the layer of button "foot1" to top
-   set the layer of button "pivot" to top
+   set the layer of btn "foot3" to top
+   set the layer of btn "foot2" to top
+   set the layer of btn "foot1" to top
+   set the layer of btn "pivot" to top
    
    ## Store the starting positions of the feet
    
-   put item 1 of the loc of button "foot1" into sFoot1Loc["x"] // X
-   put item 2 of the loc of button "foot1" into sFoot1Loc["y"] // Y
+   put item 1 of the loc of btn "foot1" into sFoot1Loc["x"] // X
+   put item 2 of the loc of btn "foot1" into sFoot1Loc["y"] // Y
    
-   put item 1 of the loc of button "foot2" into sFoot2Loc["x"]
-   put item 2 of the loc of button "foot2" into sFoot2Loc["y"]
+   put item 1 of the loc of btn "foot2" into sFoot2Loc["x"]
+   put item 2 of the loc of btn "foot2" into sFoot2Loc["y"]
    
-   put item 1 of the loc of button "foot3" into sFoot3Loc["x"]
-   put item 2 of the loc of button "foot3" into sFoot3Loc["y"]
+   put item 1 of the loc of btn "foot3" into sFoot3Loc["x"]
+   put item 2 of the loc of btn "foot3" into sFoot3Loc["y"]
+   
+   ## Store pivot position
+   
+   put the loc of btn "pivot" into sPivotLoc
    
    ## Set various level values
    
@@ -332,7 +345,6 @@ on endGame
    
    -- move button "foot1" to 256,218 in 10 ticks
    
-   //put 10000 into sTotalMoves
    put 0 into sMovesCounter
    
    //set the label of button "number_moves_remaining" to sTotalMoves
@@ -376,7 +388,6 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
          put tGridRight - (sCellWidth / 2) into pX
       else if pX < tGridLeft then
          put tGridLeft + (sCellWidth / 2) into pX
-         //if pY <> item 2 of tPreMoveFootPos then
       end if
       
    end if  
@@ -426,9 +437,10 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
    put detectCollision() into tJumpCollide
    
    if tJumpCollide and not tBoundaryHit then // If the foot will jump onto a block
+      put "jumpFail" into sCurrentAnimation
       put "overshoot" into tEffect
       send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, tEffect" to btn pFootShortName in 700 milliseconds // Call jumpBack() after a short interval
-      send "aeFadeIn tPivot, 150" to me in 800 millisecs // Fade pivot back in
+      send "aeFadeIn tPivot, 150" to me in 1000 millisecs // Fade pivot back in
    end if
    
    if not tBoundaryHit and not tJumpCollide then // If a boundary hasn't been hit, or the foot hasn't jumped onto a block
@@ -437,7 +449,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
       
       send "incrMoves" to this card in sJumpAnimateSpeed milliseconds // Increment moves counter
       
-      aeMoveTo the long id of btn "pivot", pPivotX,pPivotY,sJumpAnimateSpeed // Move pivot
+      //aeMoveTo the long id of btn "pivot", pPivotX,pPivotY,sJumpAnimateSpeed // Move pivot
       
       if pFootShortName is "foot1" then // Update script-level loc for relevant foot
          put pX into sFoot1Loc["x"]
@@ -480,8 +492,136 @@ on animateFoot pFootShortName
    end repeat
    
 end animateFoot
+
+on repositionPivot
+   
+   // Get angles of foot one to other two feet
+   put the loc of btn "foot1" into tFoot1
+   put the loc of btn "foot2" into tFoot2
+   put the loc of btn "foot3" into tFoot3
+   
+   put getAngleBetweenPoints(tFoot1, tFoot2) into tAngle12
+   put getAngleBetweenPoints(tFoot1, tFoot3) into tAngle13
+   
+   put round(sCellWidth / 6) into tPivotShift // The pivot will be moved by slightly more than the cell width
+   
+   ## For clockwise arrangement 1, 2, 3
+   
+   if tAngle12 is 63 and tAngle13 is 117 then // Position 1
+      put item 1 of tFoot1 into tPivotX
+      put item 2 of tFoot1 + sCellWidth + tPivotShift into tPivotY
+      
+   else if tAngle12 is 90 and tAngle13 is 153 then // Position 2
+      put item 2 of tFoot3 into tPivotY
+      put item 1 of tFoot3 + sCellWidth + tPivotShift into tPivotX
+      
+   else if tAngle12 is 117 and tAngle13 is 180 then // Position 3
+      put item 1 of tFoot2 into tPivotX
+      put item 2 of tFoot2 - sCellWidth - tPivotShift into tPivotY
+      
+   else if tAngle12 is 153 and tAngle13 is -153 then // Position 4
+      put item 2 of tFoot1 into tPivotY
+      put item 1 of tFoot1 - sCellWidth - tPivotShift into tPivotX
+      
+   else if tAngle12 is 180 and tAngle13 is -117 then // Position 5
+      put item 1 of tFoot3 into tPivotX
+      put item 2 of tFoot3 + sCellWidth + tPivotShift into tPivotY
+      
+   else if tAngle12 is -153 and tAngle13 is -90 then // Position 6
+      put item 2 of tFoot2 into tPivotY
+      put item 1 of tFoot2 + sCellWidth + tPivotShift into tPivotX
+      
+   else if tAngle12 is -117 and tAngle13 is -63 then // Position 7
+      put item 1 of tFoot1 into tPivotX
+      put item 2 of tFoot1 - sCellWidth - tPivotShift into tPivotY
+      
+   else if tAngle12 is -90 and tAngle13 is -27 then // Position 8
+      put item 2 of tFoot3 into tPivotY
+      put item 1 of tFoot3 - sCellWidth - tPivotShift into tPivotX
+      
+   else if tAngle12 is -63 and tAngle13 is 0 then // Position 9
+      put item 1 of tFoot2 into tPivotX
+      put item 2 of tFoot2 + sCellWidth + tPivotShift into tPivotY
+      
+   else if tAngle12 is -27 and tAngle13 is 27 then // Position 10
+      put item 2 of tFoot1 into tPivotY
+      put item 1 of tFoot1 + sCellWidth + tPivotShift into tPivotX
+      
+   else if tAngle12 is 0 and tAngle13 is 63 then // Position 11
+      put item 1 of tFoot3 into tPivotX
+      put item 2 of tFoot3 - sCellWidth - tPivotShift into tPivotY
+      
+   else if tAngle12 is 27 and tAngle13 is 90 then // Position 12
+      put item 2 of tFoot2 into tPivotY
+      put item 1 of tFoot2 - sCellWidth - tPivotShift into tPivotX
+      
+   else if tAngle13 is 63 and tAngle12 is 117 then // Position 1 (clockwise 1, 3, 2)         
+      put item 1 of tFoot1 into tPivotX
+      put item 2 of tFoot1 + sCellWidth + tPivotShift into tPivotY
+      
+   else if tAngle13 is 90 and tAngle12 is 153 then // Position 2
+      put item 2 of tFoot2 into tPivotY
+      put item 1 of tFoot2 + sCellWidth + tPivotShift into tPivotX
+      
+   else if tAngle13 is 117 and tAngle12 is 180 then // Position 3
+      put item 1 of tFoot3 into tPivotX
+      put item 2 of tFoot3 - sCellWidth - tPivotShift into tPivotY
+      
+   else if tAngle13 is 153 and tAngle12 is -153 then // Position 4
+      put item 2 of tFoot1 into tPivotY
+      put item 1 of tFoot1 - sCellWidth - tPivotShift into tPivotX
+      
+   else if tAngle13 is 180 and tAngle12 is -117 then // Position 5
+      put item 1 of tFoot2 into tPivotX
+      put item 2 of tFoot2 + sCellWidth + tPivotShift into tPivotY
+      
+   else if tAngle13 is -153 and tAngle12 is -90 then // Position 6
+      put item 2 of tFoot3 into tPivotY
+      put item 1 of tFoot3 + sCellWidth + tPivotShift into tPivotX
+      
+   else if tAngle13 is -117 and tAngle12 is -63 then // Position 7
+      put item 1 of tFoot1 into tPivotX
+      put item 2 of tFoot1 - sCellWidth - tPivotShift into tPivotY
+      
+   else if tAngle13 is -90 and tAngle12 is -27 then // Position 8
+      put item 2 of tFoot2 into tPivotY
+      put item 1 of tFoot2 - sCellWidth - tPivotShift into tPivotX
+      
+   else if tAngle13 is -63 and tAngle12 is 0 then // Position 9
+      put item 1 of tFoot3 into tPivotX
+      put item 2 of tFoot3 + sCellWidth + tPivotShift into tPivotY
+      
+   else if tAngle13 is -27 and tAngle12 is 27 then // Position 10
+      put item 2 of tFoot1 into tPivotY
+      put item 1 of tFoot1 + sCellWidth + tPivotShift into tPivotX
+      
+   else if tAngle13 is 0 and tAngle12 is 63 then // Position 11
+      put item 1 of tFoot2 into tPivotX
+      put item 2 of tFoot2 - sCellWidth - tPivotShift into tPivotY
+      
+   else if tAngle13 is 27 and tAngle12 is 90 then // Position 12
+      put item 2 of tFoot3 into tPivotY
+      put item 1 of tFoot3 - sCellWidth - tPivotShift into tPivotX
+   else
+      // Just a bit of defensive programming for the pivot to stay still if none of the above conditions is met (so tPivotX and tPivotY have a value) 
+      put item 1 of the loc of btn "pivot" into tPivotX
+      put item 2 of the loc of btn "pivot" into tPivotY
+   end if
+   
+   put tPivotX,tPivotY into sPivotLoc
+   
+   if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "pivot" then // If the pivot needs to change location after a pivot move
+      put the long ID of btn "pivot" into tPivot
+      send "aeMoveTo tPivot, item 1 of sPivotLoc, item 2 of sPivotLoc, 200" to me in 1 millisecs
+   else if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "jump" then // If the pivot needs to change location after a jump
+      set the loc of btn "pivot" to sPivotLoc // Set new loc right away
+   end if
+   
+end repositionPivot
    
 on jump pFootLoc, pFootShortName
+   
+   put the visible of btn "pivot" into msg box
    
    if not sAnimating then
       
@@ -521,48 +661,48 @@ on jump pFootLoc, pFootShortName
       // Read angles and work out in which direct the foot needs to jump
       if tAngles[1] is -117 and tAngles[2] is -63 or tAngles[2] is -117 and tAngles[1] is -63 then // N    
          put tY - (sCellWidth * 4) into tY // Amend the y pos of swiped foot
-         put tPivotY - (sCellWidth * 2) into tPivotY // Amend the y pos of pivot
+         //put tPivotY - (sCellWidth * 2) into tPivotY // Amend the y pos of pivot
       else if tAngles[1] is -27 and tAngles[2] is 27 or tAngles[2] is -27 and tAngles[1] is 27 then // E
          put tX + (sCellWidth * 4) into tX
-         put tPivotX + (sCellWidth * 2) into tPivotX
+         //put tPivotX + (sCellWidth * 2) into tPivotX
       else if tAngles[1] is 117 and tAngles[2] is 63 or tAngles[2] is 117 and tAngles[1] is 63 then // S      
          put tY + (sCellWidth * 4) into tY 
-         put tPivotY + (sCellWidth * 2) into tPivotY
+         //put tPivotY + (sCellWidth * 2) into tPivotY
       else if tAngles[1] is -153 and tAngles[2] is 153 or tAngles[2] is -153 and tAngles[1] is 153 then // W
          put tX - (sCellWidth * 4) into tX 
-         put tPivotX - (sCellWidth * 2) into tPivotX
+         //put tPivotX - (sCellWidth * 2) into tPivotX
       else if tAngles[1] is -117 and tAngles[2] is 180 or tAngles[2] is -117 and tAngles[1] is 180 then // NW
          put tY - (sCellWidth * 2) into tY
          put tX - (sCellWidth * 3) into tX
-         put tPivotX - sCellWidth into tPivotX
+         //put tPivotX - sCellWidth into tPivotX
       else if tAngles[1] is -153 and tAngles[2] is -90 or tAngles[2] is -153 and tAngles[1] is -90 then // NNW    
          put tY - (sCellWidth * 3) into tY
          put tX - (sCellWidth * 2) into tX
-         put tPivotY - sCellWidth into tPivotY
+         //put tPivotY - sCellWidth into tPivotY
       else if tAngles[1] is 0 and tAngles[2] is -63 or tAngles[2] is 0 and tAngles[1] is -63 then // NE
          put tY - (sCellWidth * 2) into tY
          put tX + (sCellWidth * 3) into tX
-         put tPivotX + sCellWidth into tPivotX
+         //put tPivotX + sCellWidth into tPivotX
       else if tAngles[1] is -90 and tAngles[2] is -27 or tAngles[2] is -90 and tAngles[1] is -27 then // NNE    
          put tY - (sCellWidth * 3) into tY
          put tX + (sCellWidth * 2) into tX
-         put tPivotY - sCellWidth into tPivotY
+         //put tPivotY - sCellWidth into tPivotY
       else if tAngles[1] is 0 and tAngles[2] is 63 or tAngles[2] is 0 and tAngles[1] is 63 then // SE
          put tY + (sCellWidth * 2) into tY
          put tX + (sCellWidth * 3) into tX
-         put tPivotX + sCellWidth into tPivotX
+         //put tPivotX + sCellWidth into tPivotX
       else if tAngles[1] is 90 and tAngles[2] is 27 or tAngles[2] is 90 and tAngles[1] is 27 then // SSE    
          put tY + (sCellWidth * 3) into tY
          put tX + (sCellWidth * 2) into tX
-         put tPivotY + sCellWidth into tPivotY
+         //put tPivotY + sCellWidth into tPivotY
       else if tAngles[1] is 117 and tAngles[2] is 180 or tAngles[2] is 117 and tAngles[1] is 180 then // SW    
          put tY + (sCellWidth * 2) into tY
          put tX - (sCellWidth * 3) into tX
-         put tPivotX - sCellWidth into tPivotX
+         //put tPivotX - sCellWidth into tPivotX
       else if tAngles[1] is 153 and tAngles[2] is 90 or tAngles[2] is 153 and tAngles[1] is 90 then // SSW    
          put tY + (sCellWidth * 3) into tY
          put tX - (sCellWidth * 2) into tX
-         put tPivotY + sCellWidth into tPivotY
+         //put tPivotY + sCellWidth into tPivotY
       end if
       
       goJump tX, tY, tPivotX, tPivotY, pFootShortName // Do the jump, passing in the new x and y coords of the swiped foot and pivot, and the foot name
@@ -721,19 +861,16 @@ on pivot
          nudge "foot2", tFoot2x, tFoot2y, sFoot2Loc["x"], sFoot2Loc["y"]
          nudge "foot3", tFoot3x, tFoot3y, sFoot3Loc["x"], sFoot3Loc["y"]
          
-      else if the visible of btn "pivot" then // If no collision and pivot is visible
+      else if the visible of btn "pivot" then // If no collision and pivot is visible, we can go ahead and pivot
          
+         put 0 into sFootPivotCount // Register than no feet have yet moved
          put the long ID of btn "pivot" into tPivot
-         
-         //send "aeFadeOut tPivot, 100" to me in 1 millisecs
-         
+
          aeLockMoves
          aeMoveTo the long id of btn "foot1",tFoot1x,tFoot1y,sPivotAnimateSpeed,"overshoot"
          aeMoveTo the long id of btn "foot2",tFoot2x,tFoot2y,sPivotAnimateSpeed,"overshoot"
          aeMoveTo the long id of btn "foot3",tFoot3x,tFoot3y,sPivotAnimateSpeed,"overshoot"
          aeUnlockMoves
-         
-         //send "aeFadeIn tPivot, 150" to me in 125 millisecs // Fade in pivot
          
          send "incrMoves" to this card in sPivotAnimateSpeed milliseconds // Increment moves counter
          
@@ -742,6 +879,20 @@ on pivot
    end if
    
 end pivot
+
+## Called by AE on completion of animation
+
+on aeMoveDone
+   
+   if sCurrentAnimation is "pivot" and sFootPivotCount < 2 then // If we're pivoting but all three feet have not yet be repositioned
+      put sFootPivotCount + 1 into sFootPivotCount // Increment foot count
+   else if sCurrentAnimation is "pivot" and sFootPivotCount is 2 then // If the pivot is complete
+      repositionPivot
+   else if sCurrentAnimation is "jump" then // If we've just completed a jump
+      repositionPivot
+   end if
+   
+end aeMoveDone
 
 function detectCollision 
    put false into tCollide
@@ -782,7 +933,7 @@ on jumpBack pTarget,pX,pY,pEffect
    aeMoveTo the long id of btn pTarget,pX,pY,sJumpAnimateSpeed,pEffect
 end jumpBack
 
-on levelWin  
+on levelWin
    
    stopGame
    
@@ -806,12 +957,6 @@ on levelWin
    
 end levelWin
 
-// Get sprite centroid
-function positionPivot
-
-   
-end positionPivot
-
 on updateScreen
    
    if sGameRunning is true then
@@ -823,8 +968,8 @@ on updateScreen
          put false into sAnimating
       end if
       
-      if not sAnimating then
-
+      if not sAnimating then 
+         
          ## Check for win         
          
          // Reset check for feet landing correctly
