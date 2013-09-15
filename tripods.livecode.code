@@ -19,6 +19,8 @@ local sTotalMoves
 global gLevel
 local sLastLevelCompleted
 
+local sTime
+
 local sJumpAnimateSpeed
 local sPivotAnimateSpeed
 local sAnimating
@@ -169,8 +171,8 @@ on setupLevel
    put item 2 of the loc of btn "foot2" into sFoot2Loc["y"]
    
    put item 1 of the loc of btn "foot3" into sFoot3Loc["x"]
-   put item 2 of the loc of btn "foot3" into sFoot3Loc["y"]
-   
+   put item 2 of the loc of btn "foot3" into sFoot3Loc["y"]   
+  
    ## Store pivot position
    
    put the loc of btn "pivot" into sPivotLoc
@@ -216,6 +218,7 @@ on setupLevel
    end repeat
    
    set the label of button "number_moves_remaining" to sTotalMoves
+   set the label of button "time_value" to 60
    
 end setupLevel
 
@@ -319,19 +322,19 @@ end dispatchUpdateScreen
 
 local sGameRunning
 
-###
-
 on preOpenStack
    put "preOpenStack" into message box
 end preOpenStack
 
 on startGame
    
-   put gLevel into msg box
+   flashSprite
+   repositionPivot
    
    activateScreenUpdates
-   put true into sGameRunning 
-   flashSprite
+   put true into sGameRunning   
+   
+   send "startTimer" to me in 500 millisecs
    
 end startGame
 
@@ -353,6 +356,25 @@ on endGame
    put false into sGameRunning
    
 end endGame
+
+on startTimer
+   
+   put the seconds into sTime
+   goTimer
+   
+end startTimer
+
+on goTimer
+   
+   if the seconds > sTime + 10 then
+      answer "Time up!"
+      exit to top
+   end if
+   
+   set the label of btn "time_value" to 60 - (the seconds - sTime)
+   send "goTimer" to me in 1 millisec
+   
+end goTimer
 
 on incrMoves
    
@@ -615,6 +637,8 @@ on repositionPivot
       send "aeMoveTo tPivot, item 1 of sPivotLoc, item 2 of sPivotLoc, 200" to me in 1 millisecs
    else if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "jump" then // If the pivot needs to change location after a jump
       set the loc of btn "pivot" to sPivotLoc // Set new loc right away
+   else if not sGameRunning then // On card load, before game is running
+      set the loc of btn "pivot" to sPivotLoc  
    end if
    
 end repositionPivot
