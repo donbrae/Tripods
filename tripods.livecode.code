@@ -13,6 +13,9 @@ local sFootLanding1Locs // Array of the loc(s) that foot 1 needs to be at to win
 local sFootLanding2Locs
 local sFootLanding3Locs
 
+local sGameRunning
+local sCheckingForWin
+
 local sMovesCounter
 local sTotalMoves
 
@@ -24,7 +27,6 @@ local sTime
 
 local sJumpAnimateSpeed
 local sPivotAnimateSpeed
-local sAnimating
 local sCurrentAnimation // Pivot or jump
 local sCollision
 
@@ -191,11 +193,11 @@ on setupLevel
    put false into sChangeInFootPos
    put 500 into sJumpAnimateSpeed // Speed in ms jump
    put 230 into sPivotAnimateSpeed // Speed in ms jump
-   put false into sAnimating // Boolean set to true when elements are being moved
    put 0 into sMovesCounter // Reset move counter
    put false into sCollision // Set collision flag to false
    put empty into sFootLandingLocs // Empty target foot location array
    set the label of button "moves_value" to sMovesCounter // Amend moves counter
+   put false into sCheckingForWin // Prevents further moves while code checks to see whether use has positioned feet at the target locations
    
    ## Calculate landing locs
    
@@ -287,60 +289,11 @@ on clearLevel
    
 end clearLevel
    
-on activateScreenUpdates
-   
-   stopUpdatingTheScreen
-   startUpdatingTheScreen 60
-   
-end activateScreenUpdates
-
-on startUpdatingTheScreen pFrameRate
-   put pFrameRate into sFrameRate
-   put 0 into sStartUpdateTime
-   send "dispatchUpdateScreen" to me in 0 millisecs
-   put the result into sUpdateMessageId
-end startUpdatingTheScreen
-
-on stopUpdatingTheScreen
-   if sUpdateMessageId is not empty then
-      cancel sUpdateMessageId
-   end if
-   put empty into sUpdateMessageId
-end stopUpdatingTheScreen
-
-on dispatchUpdateScreen
-   local tThisFrameTime
-   put the long seconds into tThisFrameTime
-   
-   if sStartUpdateTime is 0 then
-      put the long seconds into sStartUpdateTime
-   end if
-   
-   lock screen
-   dispatch "updateScreen" to this card with tThisFrameTime
-   unlock screen
-   
-   local tTheTimeNow
-   put the long seconds into tTheTimeNow
-   
-   local tNextFrameCount
-   put round((tTheTimeNow - sStartUpdateTime) * sFrameRate + 0.5) into tNextFrameCount
-   send "dispatchUpdateScreen" to me in (sStartUpdateTime + (tNextFrameCount * (1 / sFrameRate)) - tTheTimeNow) seconds
-   put the result into sUpdateMessageId
-end dispatchUpdateScreen
-
-local sGameRunning
-
-on preOpenStack
-   put "preOpenStack" into message box
-end preOpenStack
-
 on startGame
    
    flashSprite
    repositionPivot
-   
-   activateScreenUpdates
+
    put true into sGameRunning   
    
    send "startTimer" to me in 500 millisecs
@@ -352,12 +305,6 @@ on stopGame
    put false into sGameRunning
    
 end stopGame
-
-on endGame
-   
-   put false into sGameRunning
-   
-end endGame
 
 on startTimer
    
@@ -658,7 +605,7 @@ end repositionPivot
    
 on jump pFootLoc, pFootShortName
 
-   if not sAnimating then
+   if not sCheckingForWin and not isAnimating() then
 
       resetShowFeet
       
@@ -752,7 +699,7 @@ on resetShowFeet
 end resetShowFeet
 
 on pivot
-   if not sAnimating then // If no element is currently being animated
+   if not sCheckingForWin and not isAnimating() then // If no element is currently being animated, and we're not checking for a win
       
       resetShowFeet
       
@@ -921,11 +868,19 @@ end pivot
 on aeMoveDone
    
    if sCurrentAnimation is "pivot" and sFootPivotCount < 2 then // If we're pivoting but all three feet have not yet be repositioned
+      
       put sFootPivotCount + 1 into sFootPivotCount // Increment foot count
+      
    else if sCurrentAnimation is "pivot" and sFootPivotCount is 2 then // If the pivot is complete
+      
       repositionPivot
+      checkWin
+      
    else if sCurrentAnimation is "jump" then // If we've just completed a jump
-      repositionPivot
+      
+      repositionPivot      
+      checkWin
+      
    end if
    
 end aeMoveDone
@@ -972,44 +927,101 @@ on jumpBack pTarget,pX,pY,pEffect
    aeMoveTo the long id of btn pTarget,pX,pY,sJumpAnimateSpeed,pEffect
 end jumpBack
 
+## Check whether feet have landed correctly on respective landing locations
+
+on checkWin
+   
+   if sGameRunning and not sCheckingForWin and not isAnimating() then
+      
+      put true into sCheckingForWin // Flag that we're checking for a win
+      
+      // Reset check for feet landing correctly
+      put false into tFoot1LandSuccess
+      put false into tFoot2LandSuccess
+      put false into tFoot3LandSuccess
+      
+      // Foot 1       
+      repeat for each element tLoc in sFootLanding1Locs // Get the locs at which foot is able to land for level to be won
+         if item 1 of the loc of button "foot1" is item 1 of tLoc and item 2 of the loc of button "foot1" is item 2 of tLoc then // If the X and Y coords of the foot match one of the array items
+            put true into tFoot1LandSuccess
+         end if
+      end repeat
+      
+      // Foot 2       
+      repeat for each element tLoc in sFootLanding2Locs 
+         if item 1 of the loc of button "foot2" is item 1 of tLoc and item 2 of the loc of button "foot2" is item 2 of tLoc then
+            put true into tFoot2LandSuccess
+         end if
+      end repeat
+      
+      // Foot 3   
+      repeat for each element tLoc in sFootLanding3Locs 
+         if item 1 of the loc of button "foot3" is item 1 of tLoc and item 2 of the loc of button "foot3" is item 2 of tLoc then
+            put true into tFoot3LandSuccess
+         end if
+      end repeat
+      
+      if tFoot1LandSuccess and tFoot2LandSuccess and tFoot3LandSuccess then // If all feet are in the right locations
+         levelWin // Run the level win routine
+      else
+         put false into sCheckingForWin // Flag that we're no longer checking for a win
+      end if
+      
+   end if
+   
+end checkWin
+
 on levelWin
    
-   stopGame
+   stopGame   
+   flashSprite   
    
    put "You've won the level!" into tWinMsg
    
    ## Check for high score
    
-   put false into tNewHighScore      
-   put the cHighScores[gLevel] of this stack into tCurrentHighScore // Get previous high score
+   put false into tNewHighScore
+   put "level" & gLevel into tLevelName
+   put the cHighScores[tLevelName] of this stack into tCurrentHighScore // Get previous high score
    
    if sMovesCounter < tCurrentHighScore then // If we've completed the level in fewer moves than our previous attempts
       put true into tNewHighScore // Flag that this is a new high score
    end if
    
    if tNewHighScore then // If it's a new high score
-      set the cHighScores[gLevel] of this stack to sMovesCounter // Set the high score for this level to current value of moves counter
-      put tWinMsg & " You also also achieved a new personal best for this level of " & sMovesCounter & " moves!" into tWinMsg
+      set the cHighScores[tLevelName] of this stack to sMovesCounter // Set the high score for this level to current value of moves counter
+      put "You have also achieved a new personal best for this level of " & sMovesCounter & " moves!" into tNewHighScoreMsg
+   else 
+      put empty into tNewHighScoreMsg
    end if
    
    set the cWinMsg of card "level_win" to tWinMsg // Set the message custom property of the win card
-   
-   endGame
-   
-   send "showWinScreen" to me in 1500 millisecs
+   set the cNewHighScoreMsg of card "level_win" to tNewHighScoreMsg // Set the new-high-score message of the win card
+   send "showWinCard" to me in 1300 millisecs // Show card to tell user they've completed the level
      
 end levelWin
 
-on showWinScreen
+on showWinCard
    
-   clearLevel
-   go card "level_win"
+   clearLevel // Remove onscreen game elements
+   go card "level_win" // Go to the success card
    
-end showWinScreen
+end showWinCard
+
+function isAnimating
+   
+   // If the foot is in a mid-transit location, switch on the animation flag
+   if sFoot1Loc["x"] <> item 1 of the loc of button "foot1" or sFoot1Loc["y"] <> item 2 of the loc of button "foot1" or sFoot2Loc["x"] <> item 1 of the loc of button "foot2" or sFoot2Loc["y"] <> item 2 of the loc of button "foot2" or sFoot3Loc["x"] <> item 1 of the loc of button "foot3" or sFoot3Loc["y"] <> item 2 of the loc of button "foot3" then
+      return true
+   else
+      return false
+   end if
+   
+end isAnimating
    
 on updateScreen
    
-   if sGameRunning is true then
+   if sGameRunning then
       
       // If the foot is a mid-transit location, switch on the animation flag
       if sFoot1Loc["x"] <> item 1 of the loc of button "foot1" or sFoot1Loc["y"] <> item 2 of the loc of button "foot1" or sFoot2Loc["x"] <> item 1 of the loc of button "foot2" or sFoot2Loc["y"] <> item 2 of the loc of button "foot2" or sFoot3Loc["x"] <> item 1 of the loc of button "foot3" or sFoot3Loc["y"] <> item 2 of the loc of button "foot3" then
@@ -1022,35 +1034,7 @@ on updateScreen
          
          ## Check for win         
          
-         // Reset check for feet landing correctly
-         put false into tFoot1LandSuccess
-         put false into tFoot2LandSuccess
-         put false into tFoot3LandSuccess
          
-         // Foot 1       
-         repeat for each element tLoc in sFootLanding1Locs // Get the locs at which foot is able to land for level to be won
-            if item 1 of the loc of button "foot1" is item 1 of tLoc and item 2 of the loc of button "foot1" is item 2 of tLoc then // If the X and Y coords of the foot match one of the array items
-               put true into tFoot1LandSuccess
-            end if
-         end repeat
-         
-         // Foot 2       
-         repeat for each element tLoc in sFootLanding2Locs 
-            if item 1 of the loc of button "foot2" is item 1 of tLoc and item 2 of the loc of button "foot2" is item 2 of tLoc then
-               put true into tFoot2LandSuccess
-            end if
-         end repeat
-         
-         // Foot 3   
-         repeat for each element tLoc in sFootLanding3Locs 
-            if item 1 of the loc of button "foot3" is item 1 of tLoc and item 2 of the loc of button "foot3" is item 2 of tLoc then
-               put true into tFoot3LandSuccess
-            end if
-         end repeat
-         
-         if tFoot1LandSuccess and tFoot2LandSuccess and tFoot3LandSuccess then
-            levelWin
-         end if
          
       end if
       
