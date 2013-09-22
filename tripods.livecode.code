@@ -17,6 +17,7 @@ local sMovesCounter
 local sTotalMoves
 
 global gLevel
+global gScale
 local sLastLevelCompleted
 
 local sTime
@@ -34,6 +35,14 @@ on preOpenStack
    set the accelleratedRendering of this stack to true
    set the defaultFolder to specialFolderPath("documents") // Where we write files to (good for iOS and Mac OS X)
    start using stack "Helper"
+   
+   if the environment is mobile then 
+      if iphoneDeviceScale() is "2" then // Returns 2 on a retina display, 1 otherwise
+         put 2 into gScale
+         iphoneUseDeviceResolution true, true // Sets whether the full resolution of high-resolution devices is to be used
+      end if
+   end if
+   
 end preOpenStack
 
 on openStack
@@ -88,7 +97,7 @@ end retrieveHighScores
 on setupLevel
    
    put the width of button "grid" / 8 into sCellWidth
-   put sCellWidth / 2 + the left of button "grid" into tX -- +1 for grid border
+   put sCellWidth / 2 + the left of button "grid" into tX
    put sCellWidth / 2 + the top of button "grid" into tY   
    put the cLevelData["elPlacement"] of the current cd into tElPlacement
    
@@ -138,10 +147,10 @@ on setupLevel
          
       end repeat 
       
-      put sCellWidth / 2 + the top of button "grid" into tX -- Back to beginning of row
+      put sCellWidth / 2 + the left of button "grid" into tX -- Back to beginning of row
       put tY + sCellWidth into tY -- Next row
       
-   end repeat  
+   end repeat
    
    // Clone shadow buttons for detecting collisons during pivots
    clone button "shadowFoot1_src"
@@ -218,7 +227,7 @@ on setupLevel
    end repeat
    
    set the label of button "number_moves_remaining" to sTotalMoves
-   set the label of button "time_value" to 60
+   set the label of button "time_value" to 0
    
 end setupLevel
 
@@ -346,13 +355,6 @@ end stopGame
 
 on endGame
    
-   -- move button "foot1" to 256,218 in 10 ticks
-   
-   put 0 into sMovesCounter
-   
-   //set the label of button "number_moves_remaining" to sTotalMoves
-   set the label of button "moves_value" to sMovesCounter
-   
    put false into sGameRunning
    
 end endGame
@@ -366,12 +368,12 @@ end startTimer
 
 on goTimer
    
-   if the seconds > sTime + 10 then
-      answer "Time up!"
+   // Stop time when game stops running
+   if not sGameRunning then
       exit to top
    end if
    
-   set the label of btn "time_value" to 60 - (the seconds - sTime)
+   set the label of btn "time_value" to 0 + (the seconds - sTime)
    send "goTimer" to me in 1 millisec
    
 end goTimer
@@ -390,6 +392,8 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
    
    put false into tBoundaryHit
    put the loc of button pFootShortName into tPreMoveFootPos
+   
+   set the layer of btn pFootShortName to top
    
    // Get coords of grid boundary
    put the top of button "grid" into tGridTop
@@ -432,19 +436,15 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
          put getMidPoint(the loc of btn "foot1", the loc of btn "foot2") into tMidPoint
       end if
       
-      // Fade out pivot
-      put the long ID of btn "pivot" into tPivot      
-      send "aeFadeOut tPivot, 100" to me in 1 millisecs
+      send "hidePivot 100" to me in 1 millisecs // Fade out pivot
   
       aeMoveTo the long id of btn pFootShortName, item 1 of tMidPoint, item 2 of tMidPoint, sJumpAnimateSpeed / 3.5, "" // Move to boundary
       send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, tEffect" to btn pFootShortName in 200 milliseconds // Jump back after wait
-      send "aeFadeIn tPivot, 150" to me in 300 millisecs // Fade pivot back in
+      send "showPivot 150" to me in 300 millisecs // Fade pivot back in
             
    else // Otherwise, move to new position
       
-      // Fade out pivot
-      put the long ID of btn "pivot" into tPivot      
-      send "aeFadeOut tPivot, 100" to me in 1 millisecs
+      send "hidePivot 100" to me in 1 millisecs // Fade out pivot
             
       animateFoot pFootShortName
       
@@ -462,17 +462,15 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
       put "jumpFail" into sCurrentAnimation
       put "overshoot" into tEffect
       send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, tEffect" to btn pFootShortName in 700 milliseconds // Call jumpBack() after a short interval
-      send "aeFadeIn tPivot, 150" to me in 1000 millisecs // Fade pivot back in
+      send "showPivot 150" to me in 1000 millisecs // Fade pivot back in
    end if
    
    if not tBoundaryHit and not tJumpCollide then // If a boundary hasn't been hit, or the foot hasn't jumped onto a block
       
-      send "aeFadeIn tPivot, 150" to me in sJumpAnimateSpeed millisecs
+      send "showPivot 150" to me in sJumpAnimateSpeed millisecs
       
       send "incrMoves" to this card in sJumpAnimateSpeed milliseconds // Increment moves counter
-      
-      //aeMoveTo the long id of btn "pivot", pPivotX,pPivotY,sJumpAnimateSpeed // Move pivot
-      
+
       if pFootShortName is "foot1" then // Update script-level loc for relevant foot
          put pX into sFoot1Loc["x"]
          put pY into sFoot1Loc["y"]
@@ -487,9 +485,24 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
    
 end goJump
 
-on adjustPivot
+## Fades out pivot
+
+on hidePivot pSpeed
    
-end adjustPivot
+   put the long ID of btn "pivot" into tPivot      
+   aeFadeOut tPivot, pSpeed
+   
+end hidePivot
+
+## Fades in pivot and puts to top layer
+
+on showPivot pSpeed
+   
+   put the long ID of btn "pivot" into tPivot   
+   set the layer of tPivot to top
+   aeFadeIn tPivot, pSpeed
+   
+end showPivot
 
 ## Animates lift and drop of foot
 
@@ -644,19 +657,18 @@ on repositionPivot
 end repositionPivot
    
 on jump pFootLoc, pFootShortName
-   
-   put the visible of btn "pivot" into msg box
-   
+
    if not sAnimating then
-      
+
       resetShowFeet
       
       put "jump" into sCurrentAnimation
       
       put 1 into tFootCount
       // Cycle through all feet
+      
       repeat with tControl = 1 to the number of controls in current card // Go through all card controls
-         
+
          if the class of control tControl is "foot" then // If the control is a foot
             
             put "foot" & tFootCount into tFoot
@@ -670,7 +682,7 @@ on jump pFootLoc, pFootShortName
          end if
          
       end repeat
-      
+
       put 1 into tCount
       repeat for each element tElement in tOtherFeetLocs // For each of the other two foot locations
          put getAngleBetweenPoints(pFootLoc, tElement) into tAngles[tCount] // Get the angle between the swiped foot and the location of the other foot
@@ -681,7 +693,7 @@ on jump pFootLoc, pFootShortName
       put item 2 of the loc of button pFootShortName into tY // Get current y pos of the swiped foot
       put item 1 of the loc of button "pivot" into tPivotX // Get current x pos of the pivot
       put item 2 of the loc of button "pivot" into tPivotY // Get current y pos of the pivot      
-          
+      
       // Read angles and work out in which direct the foot needs to jump
       if tAngles[1] is -117 and tAngles[2] is -63 or tAngles[2] is -117 and tAngles[1] is -63 then // N    
          put tY - (sCellWidth * 4) into tY // Amend the y pos of swiped foot
@@ -935,14 +947,17 @@ end detectCollision
 
 // Nudges feet on disallowed pivot attempt
 on nudge pFoot, pFootX, pFootY, pFootCurrPosX, pFootCurrPosY // Foot, attempted X, attempted Y, pre-nudge X, pre-nudge Y
+   
+   put round(sCellWidth / 10) into nudgeAmount
+   
    if item 1 of the loc of btn pFoot < pFootX then
-      move btn pFoot to pFootCurrPosX + 4, pFootCurrPosY in 50 milliseconds without waiting // Nudge right
+      move btn pFoot to pFootCurrPosX + nudgeAmount, pFootCurrPosY in 50 milliseconds without waiting // Nudge right
    else if item 1 of the loc of btn pFoot > pFootX then
-      move btn pFoot to pFootCurrPosX - 4, pFootCurrPosY in 50 milliseconds without waiting // Nudge left
+      move btn pFoot to pFootCurrPosX - nudgeAmount, pFootCurrPosY in 50 milliseconds without waiting // Nudge left
    else if item 2 of the loc of btn pFoot < pFootY then
-      move btn pFoot to pFootCurrPosX, pFootCurrPosY + 4 in 50 milliseconds without waiting // Nudge down
+      move btn pFoot to pFootCurrPosX, pFootCurrPosY + nudgeAmount in 50 milliseconds without waiting // Nudge down
    else if item 2 of the loc of btn pFoot > pFootY then
-      move btn pFoot to pFootCurrPosX, pFootCurrPosY - 4 in 50 milliseconds without waiting // Nudge up
+      move btn pFoot to pFootCurrPosX, pFootCurrPosY - nudgeAmount in 50 milliseconds without waiting // Nudge up
    end if
    
    send "nudgeBack pFoot, pFootCurrPosX, pFootCurrPosY" to btn pFoot in 275 milliseconds // Call nudgeBack() after a short interval
@@ -977,10 +992,21 @@ on levelWin
       put tWinMsg & " You also also achieved a new personal best for this level of " & sMovesCounter & " moves!" into tWinMsg
    end if
    
-   answer tWinMsg
+   set the cWinMsg of card "level_win" to tWinMsg // Set the message custom property of the win card
    
+   endGame
+   
+   send "showWinScreen" to me in 1500 millisecs
+     
 end levelWin
 
+on showWinScreen
+   
+   clearLevel
+   go card "level_win"
+   
+end showWinScreen
+   
 on updateScreen
    
    if sGameRunning is true then
