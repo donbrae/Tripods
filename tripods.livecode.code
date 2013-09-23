@@ -96,12 +96,50 @@ on retrieveHighScores
    
 end retrieveHighScores
 
+on createLevelCard
+   
+   put "level" & the cCurrentLevel of this stack into tCurrentLevel // Get level name   
+   put the customProperties[tCurrentLevel] of this stack into tLevelProperties // Get level's custom properties
+
+   clone cd tLevelProperties["cLevelTemplate"] // Create new level card based on the level's template   
+   set the name of it to tCurrentLevel // Name it   
+   
+   ## Populate src element buttons with  lerelevant images for thisvel
+   
+   put tLevelProperties["cFootImageGrps"] into tFootImageGrps
+   split tFootImageGrps by return and ":" // Split into array
+   
+   repeat for each line tKey in the keys of tFootImageGrps
+      //answer tKey & ": " & tFootImageGrps[tKey]
+      put tFootImageGrps[tKey] & "@2x" into tFootImage // Concatenate foot image name
+      put "foot" & tKey & "_src" into tButtonName // Concatenate button name
+      setControlIcon tButtonName, tCurrentLevel, tFootImage, "elements" // Set the icon
+      
+      put tFootImageGrps[tKey] & "_landing@2x" into tFootLandingImage // Concatenate foot landing image name
+      put "landing" & tKey & "_src" into tButtonName // Concatenate button name
+      setControlIcon tButtonName, tCurrentLevel, tFootLandingImage, "elements" // Set the icon
+      
+   end repeat
+   
+end createLevelCard
+
+## Sets control icon from a card of image sources
+
+on setControlIcon pCtrlName, pCardName, pImageName, pSrcCard
+   set the icon of the control pCtrlName of cd pCardName to the id of image pImageName of the card pSrcCard
+end setControlIcon
+
+## Level setup
+
 on setupLevel
    
    put the width of button "grid" / 8 into sCellWidth
    put sCellWidth / 2 + the left of button "grid" into tX
-   put sCellWidth / 2 + the top of button "grid" into tY   
-   put the cLevelData["elPlacement"] of the current cd into tElPlacement
+   put sCellWidth / 2 + the top of button "grid" into tY
+   
+   put the cCurrentLevel of this stack into tLevelName // Get level name
+   
+   put the tLevelName["cElementPlacement"] of the current cd into tElPlacement // Get placement grid
    
    repeat for each line l in tElPlacement -- Cycle through each line
       
@@ -152,19 +190,8 @@ on setupLevel
       put sCellWidth / 2 + the left of button "grid" into tX -- Back to beginning of row
       put tY + sCellWidth into tY -- Next row
       
-   end repeat
-   
-   // Clone shadow buttons for detecting collisons during pivots
-   clone button "shadowFoot1_src"
-   set the name of it to "shadowFoot1"
-   set the class of it to "shadowFoot"
-   clone button "shadowFoot2_src"
-   set the name of it to "shadowFoot2"
-   set the class of it to "shadowFoot"
-   clone button "shadowFoot3_src"
-   set the name of it to "shadowFoot3"
-   set the class of it to "shadowFoot"
-   
+   end repeat   
+ 
    ## Clone other bits of UI
    
    // Bring sprite to top
