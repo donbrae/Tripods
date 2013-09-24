@@ -13,6 +13,8 @@ local sFootLanding1Locs // Array of the loc(s) that foot 1 needs to be at to win
 local sFootLanding2Locs
 local sFootLanding3Locs
 
+local sLevelProperties
+
 local sGameRunning
 local sCheckingForWin
 
@@ -96,50 +98,60 @@ on retrieveHighScores
    
 end retrieveHighScores
 
-on createLevelCard
+## Level launch controller
+
+on launchLevel
+   
+   configureLevelCard
+   
+   go cd "level"
+   
+   setupLevel
+   
+end launchLevel
+
+## Copies controls from relevant level template to the actual level card
+
+on configureLevelCard
    
    put "level" & the cCurrentLevel of this stack into tCurrentLevel // Get level name   
    put the customProperties[tCurrentLevel] of this stack into tLevelProperties // Get level's custom properties
-
-   clone cd tLevelProperties["cLevelTemplate"] // Create new level card based on the level's template   
-   set the name of it to tCurrentLevel // Name it   
+   put tLevelProperties into sLevelProperties // Make level properties available to whole script
+   put tLevelProperties["cLevelTemplate"] into tTemplateName
    
-   ## Populate src element buttons with  lerelevant images for thisvel
+   deleteControlsFromCard "level" // Delete any existing controls from the "level" card
    
-   put tLevelProperties["cFootImageGrps"] into tFootImageGrps
+   repeat with tControl = 1 to the number of controls in cd tLevelProperties["cLevelTemplate"] // Go through all controls in template card
+      copy control tControl of card tTemplateName to card "level" // Copy them over to the level
+   end repeat
+   
+   ## Populate src element buttons with images relevant to this level
+   
+   put tLevelProperties["cFootImageGrps"] into tFootImageGrps // Get image groups used for each foot
    split tFootImageGrps by return and ":" // Split into array
    
    repeat for each line tKey in the keys of tFootImageGrps
-      //answer tKey & ": " & tFootImageGrps[tKey]
       put tFootImageGrps[tKey] & "@2x" into tFootImage // Concatenate foot image name
       put "foot" & tKey & "_src" into tButtonName // Concatenate button name
-      setControlIcon tButtonName, tCurrentLevel, tFootImage, "elements" // Set the icon
+      setControlIcon tButtonName, "level", tFootImage, "elements" // Set the icon
       
       put tFootImageGrps[tKey] & "_landing@2x" into tFootLandingImage // Concatenate foot landing image name
       put "landing" & tKey & "_src" into tButtonName // Concatenate button name
-      setControlIcon tButtonName, tCurrentLevel, tFootLandingImage, "elements" // Set the icon
+      setControlIcon tButtonName, "level", tFootLandingImage, "elements" // Set the icon
       
    end repeat
    
-end createLevelCard
-
-## Sets control icon from a card of image sources
-
-on setControlIcon pCtrlName, pCardName, pImageName, pSrcCard
-   set the icon of the control pCtrlName of cd pCardName to the id of image pImageName of the card pSrcCard
-end setControlIcon
+end configureLevelCard
 
 ## Level setup
 
 on setupLevel
    
-   put the width of button "grid" / 8 into sCellWidth
-   put sCellWidth / 2 + the left of button "grid" into tX
-   put sCellWidth / 2 + the top of button "grid" into tY
+   put the width of btn "grid" / 8 into sCellWidth // Get width of each circular 'cell'
+   put sCellWidth / 2 + the left of btn "grid" into tX // Work out starting point on X axis
+   put sCellWidth / 2 + the top of btn "grid" into tY // And the Y
    
-   put the cCurrentLevel of this stack into tLevelName // Get level name
-   
-   put the tLevelName["cElementPlacement"] of the current cd into tElPlacement // Get placement grid
+   put sLevelProperties["cElementPlacement"] into tElPlacement // Get placement grid
    
    repeat for each line l in tElPlacement -- Cycle through each line
       
@@ -191,7 +203,7 @@ on setupLevel
       put tY + sCellWidth into tY -- Next row
       
    end repeat   
- 
+   
    ## Clone other bits of UI
    
    // Bring sprite to top
@@ -210,7 +222,7 @@ on setupLevel
    
    put item 1 of the loc of btn "foot3" into sFoot3Loc["x"]
    put item 2 of the loc of btn "foot3" into sFoot3Loc["y"]   
-  
+   
    ## Store pivot position
    
    put the loc of btn "pivot" into sPivotLoc
@@ -228,32 +240,49 @@ on setupLevel
    
    ## Calculate landing locs
    
-   repeat with tControl = 1 to the number of controls in current card // Go through all card controls
+   // Get the icon ID of each foot
+   put the icon of btn "foot1" into tFoot1Icon
+   put the icon of btn "foot2" into tFoot2Icon
+   put the icon of btn "foot3" into tFoot2Icon
+   
+   // Get the locs of the three landing spots
+   put the loc of btn "landing1" into tLanding1Loc
+   put the loc of btn "landing2" into tLanding2Loc
+   put the loc of btn "landing3" into tLanding3Loc
+   
+   if tFoot1Icon is tFoot2Icon and tFoot1Icon is tFoot3Icon then // If all feet use the same icon      
       
-      if the class of control tControl is "foot" then // If the control is a foot
-         put the landOn of control tControl into tLanding // Get the landOn custom property, which tells us which landing cells the feet can land on to win the level
-         put 1 into tCount
-         put empty into tTempLocsStore
-         put the short name of control tControl into tButtonName // Get short name of button
-         
-         put empty into tArray // Temporary array
-         
-         repeat for each line tValue in tLanding // Go through each value in property
-            put the loc of btn tValue into tArray[tCount] // Add the locs of the corresponding landing foot into the script array
-            put tCount + 1 into tCount
-         end repeat
-         
-         // Populate script arrays for target locations
-         if tButtonName is "foot1" then
-            put tArray into sFootLanding1Locs
-         else if tButtonName is "foot2" then
-            put tArray into sFootLanding2Locs
-         else if tButtonName is "foot3" then
-            put tArray into sFootLanding3Locs
-         end if 
-         
-      end if
-   end repeat
+      // Create temp array
+      put tLanding1Loc into tArray[1]
+      put tLanding2Loc into tArray[2]
+      put tLanding3Loc into tArray[3]
+      
+      // Put the array into the landing locs array
+      put tArray into sFootLanding1Locs
+      put tArray into sFootLanding2Locs
+      put tArray into sFootLanding3Locs
+      
+   else if tFoot1Icon is tFoot2Icon and tFoot1Icon is not tFoot3Icon then // If feet 1 and 2 are the same
+      
+      put tLanding1Loc into tArray[1]
+      put tLanding2Loc into tArray[2]
+      
+      put tArray into sFootLanding1Locs
+      put tArray into sFootLanding2Locs
+      
+      put tLanding3Loc into sFootLanding3Locs[1]
+      
+   else if tFoot2Icon is tFoot3Icon and tFoot1Icon is not tFoot3Icon then // If feet 2 and 3 are the same
+      
+      put tLanding2Loc into tArray[1]
+      put tLanding3Loc into tArray[2]
+      
+      put tArray into sFootLanding2Locs
+      put tArray into sFootLanding3Locs
+      
+      put tLanding1Loc into sFootLanding1Locs[1]      
+      
+   end if
    
    set the label of button "number_moves_remaining" to sTotalMoves
    set the label of button "time_value" to 0
@@ -1008,7 +1037,8 @@ on levelWin
    ## Check for high score
    
    put false into tNewHighScore
-   put "level" & gLevel into tLevelName
+   
+   put "level" & the cCurrentLevel of this stack into tLevelName // Get level name
    put the cHighScores[tLevelName] of this stack into tCurrentHighScore // Get previous high score
    
    if sMovesCounter < tCurrentHighScore then // If we've completed the level in fewer moves than our previous attempts
