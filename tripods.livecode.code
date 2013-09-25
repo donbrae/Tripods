@@ -21,8 +21,10 @@ local sCheckingForWin
 local sMovesCounter
 local sTotalMoves
 
-global gLevel
+global gTouchStartLoc
 global gScale
+global gTouchedFoot
+
 local sLastLevelCompleted
 
 local sTime
@@ -107,6 +109,7 @@ on launchLevel
    go cd "level"
    
    setupLevel
+   startGame
    
 end launchLevel
 
@@ -132,7 +135,8 @@ on configureLevelCard
    
    repeat for each line tKey in the keys of tFootImageGrps
       put tFootImageGrps[tKey] & "@2x" into tFootImage // Concatenate foot image name
-      put "foot" & tKey & "_src" into tButtonName // Concatenate button name
+      put "foot" & tKey & "_src" into tButtonName // Concatenate button name      
+      set the cAnim of btn tButtonName of cd "level" to the cAnim of grp tFootImageGrps[tKey] of the cd "elements" // Apply animation image list (from foot group custom properties) to the foot
       setControlIcon tButtonName, "level", tFootImage, "elements" // Set the icon
       
       put tFootImageGrps[tKey] & "_landing@2x" into tFootLandingImage // Concatenate foot landing image name
@@ -237,13 +241,21 @@ on setupLevel
    put empty into sFootLandingLocs // Empty target foot location array
    set the label of button "moves_value" to sMovesCounter // Amend moves counter
    put false into sCheckingForWin // Prevents further moves while code checks to see whether use has positioned feet at the target locations
+   put empty into sCurrentAnimation
+   put empty into sTouchStartLoc
+   put empty into gTouchStartLoc
+   
+   // Clear landing location arrays
+   put empty into sFootLanding1Locs
+   put empty into sFootLanding2Locs
+   put empty into sFootLanding3Locs
    
    ## Calculate landing locs
    
    // Get the icon ID of each foot
    put the icon of btn "foot1" into tFoot1Icon
    put the icon of btn "foot2" into tFoot2Icon
-   put the icon of btn "foot3" into tFoot2Icon
+   put the icon of btn "foot3" into tFoot3Icon
    
    // Get the locs of the three landing spots
    put the loc of btn "landing1" into tLanding1Loc
@@ -280,7 +292,13 @@ on setupLevel
       put tArray into sFootLanding2Locs
       put tArray into sFootLanding3Locs
       
-      put tLanding1Loc into sFootLanding1Locs[1]      
+      put tLanding1Loc into sFootLanding1Locs[1]
+      
+   else // If all feet have different icons
+      
+      put tLanding1Loc into sFootLanding1Locs[1]
+      put tLanding2Loc into sFootLanding2Locs[1]
+      put tLanding3Loc into sFootLanding3Locs[1]
       
    end if
    
@@ -518,10 +536,10 @@ end goAnimate
 on animateFoot pFootShortName
    
    put the imgGrp of btn pFootShortName into tImgGrpID // Get the ID of the image group which corresponds with this foot
-   put the anim of group id tImgGrpID of card "elements" into tAnimImages // Get the anim custom property of the group (in the "elements" card). This lists the images which will be used in the animation
+   put the cAnim of btn pFootShortName into tAnimImages // Get the anim custom property of the group (in the "elements" card). This lists the images which will be used in the animation
    
    put round(sJumpAnimateSpeed / 12) into tAnimInc // Calculate a 'frame rate'
-   put 1 into tMultiplier
+   put 1 into tMultiplier // So animation frames change at right moment
    
    // Do the animation
    repeat for each line tImgID in tAnimImages
