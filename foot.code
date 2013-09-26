@@ -1,0 +1,29 @@
+local sXLoc, sYLoc
+
+on dragStart
+   
+   put the loc me into tFootLoc
+   put the short name of me into tFootNameShort
+   jump tFootLoc, tFootNameShort
+   
+end dragStart
+
+on touchStart
+   
+   put item 1 of mouseLoc() into sXLoc
+   put item 2 of mouseLoc() into sYLoc
+   
+end touchStart
+
+on touchMove
+   
+   put item 1 of mouseLoc() into tXOffset
+   put item 2 of mouseLoc() into tYOffset
+   
+   if abs(tXOffset - sXLoc) > 60 or abs(tYOffset - sYLoc) > 60 then // If swiped by over 30 pixels
+      put the loc me into tFootLoc
+      put the short name of me into tFootNameShort
+      jump tFootLoc, tFootNameShort
+   end if
+     
+end touchMove

@@ -1073,6 +1073,9 @@ on levelWin
    set the cWinMsg of card "level_win" to tWinMsg // Set the message custom property of the win card
    set the cNewHighScoreMsg of card "level_win" to tNewHighScoreMsg // Set the new-high-score message of the win card
    send "showWinCard" to me in 1300 millisecs // Show card to tell user they've completed the level
+   
+   put the cCurrentLevel of this stack + 1 into tNextLevel
+   set the cCurrentLevel of this stack to tNextLevel
      
 end levelWin
 
@@ -1093,27 +1096,3 @@ function isAnimating
    end if
    
 end isAnimating
-   
-on updateScreen
-   
-   if sGameRunning then
-      
-      // If the foot is a mid-transit location, switch on the animation flag
-      if sFoot1Loc["x"] <> item 1 of the loc of button "foot1" or sFoot1Loc["y"] <> item 2 of the loc of button "foot1" or sFoot2Loc["x"] <> item 1 of the loc of button "foot2" or sFoot2Loc["y"] <> item 2 of the loc of button "foot2" or sFoot3Loc["x"] <> item 1 of the loc of button "foot3" or sFoot3Loc["y"] <> item 2 of the loc of button "foot3" then
-         put true into sAnimating
-      else
-         put false into sAnimating
-      end if
-      
-      if not sAnimating then 
-         
-         ## Check for win         
-         
-         
-         
-      end if
-      
-   end if
-   
-end updateScreen
-
