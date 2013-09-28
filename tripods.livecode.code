@@ -63,10 +63,21 @@ on openStack
       put 10000 into sTotalMoves // If no file, then put to 10000
    end if
    
-   retrieveHighScores
-   
+   retrieveHighScores   
    
 end openStack
+
+on test
+   
+   // Get stack custom property sets
+   put the customPropertySets of the current stack into tCustomPropertySets
+   
+   // Cycle through the array and format for saving to file
+   repeat for each line tSet in the keys of tCustomPropertySets
+      answer tSet
+   end repeat
+   
+end test
 
 on closeStack
    
@@ -1070,14 +1081,38 @@ on levelWin
       put empty into tNewHighScoreMsg
    end if
    
-   set the cWinMsg of card "level_win" to tWinMsg // Set the message custom property of the win card
-   set the cNewHighScoreMsg of card "level_win" to tNewHighScoreMsg // Set the new-high-score message of the win card
+   set the cWinMsg of cd "level_win" to tWinMsg // Set the message custom property of the win card
+   set the cNewHighScoreMsg of cd "level_win" to tNewHighScoreMsg // Set the new-high-score message of the win card
    send "showWinCard" to me in 1300 millisecs // Show card to tell user they've completed the level
    
-   put the cCurrentLevel of this stack + 1 into tNextLevel
-   set the cCurrentLevel of this stack to tNextLevel
-     
+   set the cStarRating of cd "level_win" to calculateStarRating() // Get and set star rating
+   
+   put the cCurrentLevel of this stack + 1 into tNextLevel // Increment level number
+   
+   if "level" & tNextLevel is among the lines of the customPropertySets of the current stack then // If the level exists
+      set the cCurrentLevel of this stack to tNextLevel // Set the next level
+   else
+      set the cCurrentLevel of this stack to 1 // Else go back to level 1
+   end if   
+   
 end levelWin
+
+## Calculates the level's star rating based on the level set's cStarRating custom property
+
+function calculateStarRating
+   
+   put sLevelProperties["cStarRating"] into tStarRating // Get star rating parameters for level
+   split tStarRating by return and ":" // Split into array
+   
+   if sMovesCounter <= tStarRating[3] then
+      return 3 // 3-star rating
+   else if sMovesCounter > tStarRating[3] and sMovesCounter <= tStarRating[2] then
+      return 2 // 2-star rating
+   else
+      return 1 // 1-star rating
+   end if
+
+end calculateStarRating
 
 on showWinCard
    

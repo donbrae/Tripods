@@ -1,0 +1,57 @@
+global gLevel
+
+on preOpenCard
+   
+   // Hide stars
+   set the visible of btn "star1" to false
+   set the visible of btn "star2" to false
+   set the visible of btn "star3" to false
+   
+   put the cWinMsg of this card into fld "win_message" // Display win message
+   put the cNewHighScoreMsg of this card into fld "high_score_message" // Display any high-score message
+   
+end preOpenCard
+
+on openCard
+   
+   put the cStarRating of this card into tStarRating
+   
+   if tStarRating is "3" then
+      
+      send "animateStar star1" to me in 300 millisecs
+      send "animateStar star2" to me in 600 millisecs
+      send "animateStar star3" to me in 900 millisecs
+      
+   else if tStarRating is "2" then
+      
+      send "animateStar star1" to me in 300 millisecs
+      send "animateStar star2" to me in 600 millisecs
+      
+   else if tStarRating is "1" then
+      
+      send "animateStar star1" to me in 300 millisecs
+      
+   end if
+   
+end openCard
+
+## Animates stars used in level rating
+on animateStar pStarBtn
+   
+   put 300 into tAnimateSpeed
+   put pStarBtn & "_outline" into tStarOutline
+   put pStarBtn & "_shadow" into tStarShadow
+   
+   aeFadeIn the long id of btn tStarOutline, tAnimateSpeed // Fade in outlined star   
+   send "transition tStarOutline, tStarShadow, tAnimateSpeed" to me in 300 millisecs // Fade out outlined star, fade in filled star with shadow   
+   send "transition tStarShadow, pStarBtn, tAnimateSpeed" to me in 600 millisecs // Fade out filled star with shadow, fade in final star button
+
+end animateStar
+
+## Fade button 1 out, fade button 2 in
+on transition pBtn1, pBtn2, pSpeed
+   
+   aeFadeOut the long id of btn pBtn1, pSpeed
+   aeFadeIn the long id of btn pBtn2, pSpeed
+   
+end transition
