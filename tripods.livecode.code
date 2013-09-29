@@ -1055,17 +1055,33 @@ on levelWin
    put false into tNewHighScore
    
    put "level" & the cCurrentLevel of this stack into tLevelName // Get level name
-   put the cHighScores[tLevelName] of this stack into tCurrentHighScore // Get previous high score
+   put the cHighScores[tLevelName] of this stack into tCurrentHighScore // Get previous high score (will be empty on first attempt)
    
-   if sMovesCounter < tCurrentHighScore then // If we've completed the level in fewer moves than our previous attempts
+   set the cCurrentHighScore of cd "level_win" to tCurrentHighScore // Set current high score property of win card (could be empty)
+   set the cNewHighScore of cd "level_win" to empty // Empty new high score property of win card
+   set the cBonusPoints of cd "level_win" to empty // Empty bonus points custom property
+   
+   if tCurrentHighScore is empty or sMovesCounter < tCurrentHighScore then // If we've completed the level in fewer moves than our previous attempts, or this is the first time the level has been won
+      
       put true into tNewHighScore // Flag that this is a new high score
+      
    end if
    
    if tNewHighScore then // If it's a new high score
+      
+      put 5 into cBonusPoints // Give 5 bonus points
+      
+      // Record the current and new high scores for the win card
+      set the cCurrentHighScore of cd "level_win" to the cHighScores[tLevelName] of this stack
+      set the cNewHighScore of cd "level_win" to sMovesCounter
+      
       set the cHighScores[tLevelName] of this stack to sMovesCounter // Set the high score for this level to current value of moves counter
       put "You have also achieved a new personal best for this level of " & sMovesCounter & " moves!" into tNewHighScoreMsg
-   else 
+      
+   else
+      
       put empty into tNewHighScoreMsg
+      
    end if
    
    set the cWinMsg of cd "level_win" to tWinMsg // Set the message custom property of the win card
@@ -1073,6 +1089,7 @@ on levelWin
    send "showWinCard" to me in 1300 millisecs // Show card to tell user they've completed the level
    
    set the cStarRating of cd "level_win" to calculateStarRating() // Get and set star rating
+   set the cLevelMoves of cd "level_win" to sMovesCounter // Store moves counter in win card custom property
       
 end levelWin
 
