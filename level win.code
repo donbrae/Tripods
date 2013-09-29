@@ -1,15 +1,15 @@
 on preOpenCard
    
-   // Hide stars
+   // Reset star configuration
    set the visible of btn "star1" to false
    set the visible of btn "star2" to false
    set the visible of btn "star3" to false
    set the visible of btn "star1_shadow" to false
    set the visible of btn "star2_shadow" to false
    set the visible of btn "star3_shadow" to false
-   set the visible of btn "star1_outline" to false
-   set the visible of btn "star2_outline" to false
-   set the visible of btn "star3_outline" to false
+   set the visible of btn "star1_outline" to true
+   set the visible of btn "star2_outline" to true
+   set the visible of btn "star3_outline" to true
    
    put the cWinMsg of this card into fld "win_message" // Display win message
    put the cNewHighScoreMsg of this card into fld "high_score_message" // Display any high-score message
@@ -118,9 +118,9 @@ on animateStar pStarBtn
    put pStarBtn & "_outline" into tStarOutline
    put pStarBtn & "_shadow" into tStarShadow
    
-   aeFadeIn the long id of btn tStarOutline, tAnimateSpeed // Fade in outlined star   
-   send "transition tStarOutline, tStarShadow, tAnimateSpeed" to me in 300 millisecs // Fade out outlined star, fade in filled star with shadow   
-   send "transition tStarShadow, pStarBtn, tAnimateSpeed" to me in 600 millisecs // Fade out filled star with shadow, fade in final star button
+   //aeFadeIn the long id of btn tStarShadow, tAnimateSpeed // Fade in outlined star   
+   send "transition tStarOutline, tStarShadow, tAnimateSpeed" to me in 1 millisecs // Fade out outlined star, fade in filled star with shadow   
+   send "transition tStarShadow, pStarBtn, tAnimateSpeed" to me in 300 millisecs // Fade out filled star with shadow, fade in final star button
 
 end animateStar
 
