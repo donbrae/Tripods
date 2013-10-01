@@ -19,7 +19,6 @@ local sGameRunning
 local sCheckingForWin
 
 local sMovesCounter
-local sTotalMoves
 
 global gTouchStartLoc
 global gScale
@@ -58,10 +57,13 @@ on openStack
    end if
    
    if there is a file "moves.txt" then
-      put URL ("file:moves.txt") into sTotalMoves // Get total moves used from file and store in script local
+      put URL ("file:moves.txt") into tTotalMoves // Get total moves used from file
+      set the cTotalMovesRemaining of the current stack to tTotalMoves // Update stack custom property
    else
-      put 10000 into sTotalMoves // If no file, then put to 10000
+      set the cTotalMovesRemaining of the current stack to 10000 // If no file, then put to 10000
    end if
+   
+   put the cTotalMovesRemaining of the current stack into fld "moves_remaining" of cd "settings"
    
    retrieveHighScores   
    
@@ -69,7 +71,7 @@ end openStack
 
 on closeStack
    
-   put sTotalMoves into URL ("file:moves.txt") // Store number of moves remaining   
+   put the cTotalMovesRemaining of the current stack into URL ("file:moves.txt") // Store number of moves remaining   
    saveHighScores
    
 end closeStack
@@ -300,7 +302,7 @@ on setupLevel
       
    end if
    
-   set the label of button "number_moves_remaining" to sTotalMoves
+   put the cTotalMovesRemaining of the current stack into fld "moves_remaining" of cd "settings"
    set the label of button "time_value" to 0
    
 end setupLevel
@@ -402,8 +404,9 @@ on incrMoves
    put sMovesCounter + 1 into sMovesCounter // sMovesCounter++
    set the label of button "moves_value" to sMovesCounter // Amend moves counter
    
-   put sTotalMoves - 1 into sTotalMoves // sTotalMoves--
-   set the label of button "number_moves_remaining" to sTotalMoves // Amend total moves counter
+   set the cTotalMovesRemaining of the current stack to the cTotalMovesRemaining of the current stack - 1 // Total moves--
+
+   put the cTotalMovesRemaining of the current stack into fld "moves_remaining" of cd "settings" // Amend total moves counter
     
 end incrMoves
 
