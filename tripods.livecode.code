@@ -1,5 +1,4 @@
 local sStartUpdateTime
-local sFrameRate
 local sUpdateMessageId
 local sCellWidth
 local sFoot1Loc
@@ -36,16 +35,31 @@ local sCollision
 ## Stack custom properties: 
 // accelleratedRendering
 
+on test
+   
+   repeat with tCard = 1 to the number of cards
+      //put the width of cd tCard into msg box
+      //set the width of cd tCard to 640
+      //set the height of cd tCard to the height of this stack
+   end repeat
+
+end test
+
 on preOpenStack
+   
    set the accelleratedRendering of this stack to true
    set the defaultFolder to specialFolderPath("documents") // Where we write files to (good for iOS and Mac OS X)
    start using stack "Helper"
    
-   if the environment is mobile then 
+   if the environment is "mobile" then
+
+      set the rect of this stack to the screenrect // Resize the stack
+      
       if iphoneDeviceScale() is "2" then // Returns 2 on a retina display, 1 otherwise
          put 2 into gScale
          iphoneUseDeviceResolution true, true // Sets whether the full resolution of high-resolution devices is to be used
       end if
+      
    end if
    
 end preOpenStack
@@ -55,6 +69,8 @@ on openStack
    if "animationEngine" is not among the lines of the stacksInUse then
       start using stack "animationEngine"
    end if
+   
+   aeSetFrameRate 60 // Set the Animation Engine frame rate
    
    if there is a file "moves.txt" then
       put URL ("file:moves.txt") into tTotalMoves // Get total moves used from file
@@ -109,6 +125,8 @@ on launchLevel
    
    go cd "level"
    
+   positionLevelElements
+   
    setupLevel
    startGame
    
@@ -146,6 +164,37 @@ on configureLevelCard
    end repeat
    
 end configureLevelCard
+
+## Position the relevant elements (to cater for different screen sizes)
+
+on positionLevelElements
+   
+   set the loc of btn "grid" of the cd "level" to the loc of cd "level" // Center game grid
+   
+   // Position moves counter
+   set the left of fld "moves" of the cd "level" to 0
+   set the left of btn "moves_value" of the cd "level" to the right of fld "moves" of the cd "level"
+   set the top of fld "moves" of the cd "level" to 0
+   set the top of btn "moves_value" of the cd "level" to 0
+   
+   // Position "Previous Best" fields
+   set the right of btn "previous_best_value" of the cd "level" to the width of the cd "level"
+   set the right of fld "previous_best" of the cd "level" to the left of btn "previous_best_value" of the cd "level"   
+   set the top of fld "previous_best" of the cd "level" to 0
+   set the top of btn "previous_best_value" of the cd "level" to 0
+   
+   // Position "Exit" button
+   set the bottom of the btn "stop" of the cd "level" to the height of the cd "level"
+   set the right of the btn "stop" of the cd "level" to the width of the cd "level"
+   
+   if the environment is "mobile" then
+      
+      set the loc of btn "bg" of the cd "level" to the loc of the cd "level"
+      set the loc of btn "grid" of the cd "level" to the loc of the cd "level"
+      
+   end if
+   
+end positionLevelElements
 
 ## Level setup
 
@@ -207,8 +256,6 @@ on setupLevel
       put tY + sCellWidth into tY -- Next row
       
    end repeat   
-   
-   ## Clone other bits of UI
    
    // Bring sprite to top
    set the layer of btn "foot3" to top
@@ -401,7 +448,6 @@ end goTimer
 
 on incrMoves
    
-   put sMovesCounter + 1 into sMovesCounter // sMovesCounter++
    set the label of button "moves_value" to sMovesCounter // Amend moves counter
    
    set the cTotalMovesRemaining of the current stack to the cTotalMovesRemaining of the current stack - 1 // Total moves--
@@ -491,6 +537,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
       
       send "showPivot 150" to me in sJumpAnimateSpeed millisecs
       
+      put sMovesCounter + 1 into sMovesCounter // sMovesCounter++
       send "incrMoves" to this card in sJumpAnimateSpeed milliseconds // Increment moves counter
 
       if pFootShortName is "foot1" then // Update script-level loc for relevant foot
@@ -920,6 +967,8 @@ on pivot
          nudge "foot3", tFoot3x, tFoot3y, sFoot3Loc["x"], sFoot3Loc["y"]
          
       else if the visible of btn "pivot" then // If no collision and pivot is visible, we can go ahead and pivot
+         
+         put sMovesCounter + 1 into sMovesCounter // sMovesCounter++
          
          put 0 into sFootPivotCount // Register than no feet have yet moved
          put the long ID of btn "pivot" into tPivot
