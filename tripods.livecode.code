@@ -282,7 +282,7 @@ on setupLevel
    
    put false into sChangeInFootPos
    put 500 into sJumpAnimateSpeed // Speed in ms jump
-   put 230 into sPivotAnimateSpeed // Speed in ms jump
+   put 340 into sPivotAnimateSpeed // Speed in ms jump
    put 0 into sMovesCounter // Reset move counter
    put false into sCollision // Set collision flag to false
    put empty into sFootLandingLocs // Empty target foot location array
@@ -456,12 +456,41 @@ on incrMoves
     
 end incrMoves
 
+// On a jump, this timer function will be called to check for the moment the foot hits the game boundary
+on checkForBoundaryCollision pFootShortName, pFootPrevX, pFootPrevY
+   
+   //put sCellWidth / 4 into tQuarterCell
+   
+   put the loc of btn pFootShortName into msg box
+   
+   put the left of the btn "grid" into tLeftBoundary
+   put the right of the btn "grid" into tRightBoundary
+   put the top of the btn "grid" into tTopBoundary
+   put the bottom of the btn "grid" into tBottomBoundary   
+   
+   if the left of btn pFootShortName < tLeftBoundary or the right of btn pFootShortName > tRightBoundary or the top of btn pFootShortName < tTopBoundary or the bottom of btn pFootShortName > tBottomBoundary then
+      
+      stop moving btn pFootShortName
+      
+      //aeStopMoving the long ID of btn pFootShortName // Stop the jump      
+      //send "jumpBack pFootShortName, pFootPrevX, pFootPrevY, bounce" to btn pFootShortName in 100 milliseconds // Jump back after short wait
+      //send "showPivot 150" to me in sJumpAnimateSpeed millisecs // Show the pivot
+      exit to top
+      
+   end if
+   
+   send "checkForBoundaryCollision pFootShortName, pFootPrevX, pFootPrevY" to me in 1 millisec
+   
+end checkForBoundaryCollision
+
 on goJump pX, pY, pPivotX, pPivotY, pFootShortName
    
    put false into tBoundaryHit
-   put the loc of button pFootShortName into tPreMoveFootPos
    
-   set the layer of btn pFootShortName to top
+   // Get coords of previous foot loc
+   put the loc of button pFootShortName into tPreMoveFootPos
+   put item 1 of tPreMoveFootPos into tFootPrevX
+   put item 2 of tPreMoveFootPos into tFootPrevY
    
    // Get coords of grid boundary
    put the top of button "grid" into tGridTop
@@ -469,68 +498,57 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
    put the left of button "grid" into tGridLeft
    put the right of button "grid" into tGridRight
    
+   set the layer of btn pFootShortName to top // Bring foot to front   
+   
    if pY < tGridTop or pY > tGridBottom or pX < tGridLeft or pX > tGridRight then // If game area boundary will be hit
       
       put true into tBoundaryHit
       
-      // Amend pX and pY parameters
-      if pY < tGridTop then
-         put tGridTop + (sCellWidth / 2) into pY
-      else if pY > tGridBottom then
-         put tGridBottom - (sCellWidth / 2) into pY
-      else if pX > tGridRight then
-         put tGridRight - (sCellWidth / 2) into pX
-      else if pX < tGridLeft then
-         put tGridLeft + (sCellWidth / 2) into pX
-      end if
+      send "aeStopMoving the long id of btn pFootShortName" to me in (sJumpAnimateSpeed / 2) millisecs
+      //send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, bounce" to me in (sJumpAnimateSpeed + 1000) milliseconds // Jump back after short wait
+      //send "showPivot 150" to me in (sJumpAnimateSpeed + 250) millisecs // Show the pivot
+      //send "checkForBoundaryCollision pFootShortName, tFootPrevX, tFootPrevY" to me in (sJumpAnimateSpeed / 2) millisecs // Activate timer to check for boundary cross
       
    end if  
    
-   put "overshoot" into tJumpEffect // Default jump easing effect
-   
-   put item 1 of tPreMoveFootPos into tFootPrevX // Get X coord of previous foot loc
-   put item 2 of tPreMoveFootPos into tFootPrevY // Get Y coord of previous foot loc
-   
-   if tBoundaryHit then // If a boundary has been hit
-      
-      put "bounce" into tEffect      
-      
-      // Get mid-point between other two feet
-      if pFootShortName is "foot1" then
-         put getMidPoint(the loc of btn "foot2", the loc of btn "foot3") into tMidPoint
-      else if pFootShortName is "foot2" then
-         put getMidPoint(the loc of btn "foot1", the loc of btn "foot3") into tMidPoint
-      else if pFootShortName is "foot3" then
-         put getMidPoint(the loc of btn "foot1", the loc of btn "foot2") into tMidPoint
-      end if
-      
-      send "hidePivot 100" to me in 1 millisecs // Fade out pivot
-  
-      aeMoveTo the long id of btn pFootShortName, item 1 of tMidPoint, item 2 of tMidPoint, sJumpAnimateSpeed / 3.5, "" // Move to boundary
-      send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, tEffect" to btn pFootShortName in 200 milliseconds // Jump back after wait
-      send "showPivot 150" to me in 300 millisecs // Fade pivot back in
-            
-   else // Otherwise, move to new position
-      
-      send "hidePivot 100" to me in 1 millisecs // Fade out pivot
-            
-      animateFoot pFootShortName
-      
-      aeLockMoves
-      aeMoveTo the long id of btn pFootShortName,pX,pY,sJumpAnimateSpeed,tJumpEffect
-      aeUnlockMoves
-           
-   end if
+   put "inOut" into tJumpEffect // Default jump easing effect
    
    // Detect collision with block
    set the loc of btn "shadowFoot1" to pX,pY // Set position of a shadow foot to check for imminent collisions  
    put detectCollision() into tJumpCollide
    
+   send "hidePivot 100" to me in 1 millisecs // Fade out pivot   
+   animateFoot pFootShortName, 12 // Start foot 'jump' animation
+   
    if tJumpCollide and not tBoundaryHit then // If the foot will jump onto a block
+      
       put "jumpFail" into sCurrentAnimation
-      put "overshoot" into tEffect
-      send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, tEffect" to btn pFootShortName in 700 milliseconds // Call jumpBack() after a short interval
-      send "showPivot 150" to me in 1000 millisecs // Fade pivot back in
+      
+      aeLockMoves
+      aeMoveTo the long id of btn pFootShortName,pX,pY,sJumpAnimateSpeed,tJumpEffect
+      aeUnlockMoves
+      
+      send "animateFoot pFootShortName, 18" to me in sJumpAnimateSpeed + 400 millisecs // Start foot 'jump' animation
+      send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, inOut" to btn pFootShortName in sJumpAnimateSpeed + 400 millisecs // Call jumpBack() after a short interval
+      send "showPivot 150" to me in sJumpAnimateSpeed + 700 millisecs // Fade pivot back in
+      
+   else if tBoundaryHit then // If boundary will be hit
+      
+      // Attempt jump
+      //aeLockMoves
+      //aeMoveTo the long id of btn pFootShortName,pX,pY,sJumpAnimateSpeed
+      //aeUnlockMoves
+      
+      send "checkForBoundaryCollision pFootShortName, tFootPrevX, tFootPrevY" to me in 1 millisecs // Activate timer to check for boundary cross      
+      move btn pFootShortName to pX,pY in 1.5 secs without waiting
+      
+   else
+      
+      // Do the jump
+      aeLockMoves
+      aeMoveTo the long id of btn pFootShortName,pX,pY,sJumpAnimateSpeed,tJumpEffect
+      aeUnlockMoves
+      
    end if
    
    if not tBoundaryHit and not tJumpCollide then // If a boundary hasn't been hit, or the foot hasn't jumped onto a block
@@ -539,7 +557,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
       
       put sMovesCounter + 1 into sMovesCounter // sMovesCounter++
       send "incrMoves" to this card in sJumpAnimateSpeed milliseconds // Increment moves counter
-
+      
       if pFootShortName is "foot1" then // Update script-level loc for relevant foot
          put pX into sFoot1Loc["x"]
          put pY into sFoot1Loc["y"]
@@ -581,12 +599,12 @@ end goAnimate
 
 ## Control animation for lift and drop of foot
 
-on animateFoot pFootShortName
+on animateFoot pFootShortName, pFrameRateFactor
    
    put the imgGrp of btn pFootShortName into tImgGrpID // Get the ID of the image group which corresponds with this foot
    put the cAnim of btn pFootShortName into tAnimImages // Get the anim custom property of the group (in the "elements" card). This lists the images which will be used in the animation
    
-   put round(sJumpAnimateSpeed / 12) into tAnimInc // Calculate a 'frame rate'
+   put round(sJumpAnimateSpeed / pFrameRateFactor) into tAnimInc // Calculate a 'frame rate'
    put 1 into tMultiplier // So animation frames change at right moment
    
    // Do the animation
@@ -1048,7 +1066,7 @@ on nudgeBack pTarget,pX,pY,pTime
 end nudgeBack
 
 on jumpBack pTarget,pX,pY,pEffect
-   aeMoveTo the long id of btn pTarget,pX,pY,sJumpAnimateSpeed,pEffect
+   aeMoveTo the long id of btn pTarget,pX,pY,round(sJumpAnimateSpeed / 1.5),pEffect
 end jumpBack
 
 ## Check whether feet have landed correctly on respective landing locations
