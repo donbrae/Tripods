@@ -13,8 +13,8 @@ local sFootLanding2Locs
 local sFootLanding3Locs
 
 local sLevelProperties
-
 local sGameRunning
+
 local sCheckingForWin
 
 local sMovesCounter
@@ -32,18 +32,15 @@ local sPivotAnimateSpeed
 local sCurrentAnimation // Pivot or jump
 local sCollision
 
-## Stack custom properties: 
-// accelleratedRendering
-
-on test
+on cancelPendingMessages
    
-   repeat with tCard = 1 to the number of cards
-      //put the width of cd tCard into msg box
-      //set the width of cd tCard to 640
-      //set the height of cd tCard to the height of this stack
+   repeat with x = 1 to the number of lines of the pendingMessages
+      
+      cancel item 1 of line x of the pendingMessages // Item 1 is the message ID
+      
    end repeat
-
-end test
+   
+end cancelPendingMessages
 
 on preOpenStack
    
@@ -400,6 +397,8 @@ end flashSprite
 
 on clearLevel
    
+   aeStopMoving the long ID of btn "bg" of the cd "level" // Stop background moving
+   
    // Delete level objects from card
    put the number of buttons of this card into tCount
    repeat with x = tCount down to 1
@@ -408,16 +407,32 @@ on clearLevel
         end if
    end repeat
    
-end clearLevel
+   cancelPendingMessages // Cancel any pending messages (e.g. background image move)
+   
+end clearLevel   
+   
+on animateBackground
+   
+   put "bg" into tBackground
+   put "level" into tCard
+   
+   //send "aeMoveTo the long id of btn tBackground, the width of this card, item 2 of this loc of this card, 7000" to me in 1 millisec // To left 
+   send "aeMoveTo the long id of btn tBackground of the card tCard, 0, item 2 of this loc of this card, 20000" to me in 1 millisecs // To right
+   send "aeMoveTo the long id of btn tBackground, the width of this card, item 2 of this loc of this card, 20000" to me in 20100 millisecs // To left
+   
+end animateBackground   
    
 on startGame
    
    flashSprite
    repositionPivot
-
-   put true into sGameRunning   
    
-   //send "startTimer" to me in 500 millisecs
+   put true into sGameRunning
+   
+   put the loc of this card into tCardLoc
+   
+   set the loc of btn "bg" to the width of this card, item 2 of this loc of this card // Background button to left
+   animateBackground
    
 end startGame
 
@@ -456,34 +471,7 @@ on incrMoves
     
 end incrMoves
 
-// On a jump, this timer function will be called to check for the moment the foot hits the game boundary
-on checkForBoundaryCollision pFootShortName, pFootPrevX, pFootPrevY
-   
-   //put sCellWidth / 4 into tQuarterCell
-   
-   put the loc of btn pFootShortName into msg box
-   
-   put the left of the btn "grid" into tLeftBoundary
-   put the right of the btn "grid" into tRightBoundary
-   put the top of the btn "grid" into tTopBoundary
-   put the bottom of the btn "grid" into tBottomBoundary   
-   
-   if the left of btn pFootShortName < tLeftBoundary or the right of btn pFootShortName > tRightBoundary or the top of btn pFootShortName < tTopBoundary or the bottom of btn pFootShortName > tBottomBoundary then
-      
-      stop moving btn pFootShortName
-      
-      //aeStopMoving the long ID of btn pFootShortName // Stop the jump      
-      //send "jumpBack pFootShortName, pFootPrevX, pFootPrevY, bounce" to btn pFootShortName in 100 milliseconds // Jump back after short wait
-      //send "showPivot 150" to me in sJumpAnimateSpeed millisecs // Show the pivot
-      exit to top
-      
-   end if
-   
-   send "checkForBoundaryCollision pFootShortName, pFootPrevX, pFootPrevY" to me in 1 millisec
-   
-end checkForBoundaryCollision
-
-on goJump pX, pY, pPivotX, pPivotY, pFootShortName
+on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
    
    put false into tBoundaryHit
    
@@ -504,14 +492,10 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
       
       put true into tBoundaryHit
       
-      send "aeStopMoving the long id of btn pFootShortName" to me in (sJumpAnimateSpeed / 2) millisecs
-      //send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, bounce" to me in (sJumpAnimateSpeed + 1000) milliseconds // Jump back after short wait
-      //send "showPivot 150" to me in (sJumpAnimateSpeed + 250) millisecs // Show the pivot
-      //send "checkForBoundaryCollision pFootShortName, tFootPrevX, tFootPrevY" to me in (sJumpAnimateSpeed / 2) millisecs // Activate timer to check for boundary cross
-      
    end if  
    
    put "inOut" into tJumpEffect // Default jump easing effect
+   put sJumpAnimateSpeed into tJumpAnimateSpeed
    
    // Detect collision with block
    set the loc of btn "shadowFoot1" to pX,pY // Set position of a shadow foot to check for imminent collisions  
@@ -534,22 +518,70 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
       
    else if tBoundaryHit then // If boundary will be hit
       
-      // Attempt jump
-      //aeLockMoves
-      //aeMoveTo the long id of btn pFootShortName,pX,pY,sJumpAnimateSpeed
-      //aeUnlockMoves
+      if pDirection is "N" then
+         put item 1 of the loc of btn pFootShortName into pX // X pos will be the same
+         put the top of btn "grid" + (sCellWidth / 2) into pY // Jump to top of grid
+      else if pDirection is "E" then
+         put the right of btn "grid" - (sCellWidth / 2) into pX
+         put item 2 of the loc of btn pFootShortName into pY
+      else if pDirection is "S" then
+         put item 1 of the loc of btn pFootShortName into pX
+         put the bottom of btn "grid" - (sCellWidth / 2) into pY
+      else if pDirection is "W" then
+         put the left of btn "grid" + (sCellWidth / 2) into pX
+         put item 2 of the loc of btn pFootShortName into pY
+      else // For other jump directions, we'll move to the triangle centroid
+         
+         // Position shadow feet in what would be the post-jump positions (pFootShortName is, of course, out of bounds)
+         if pFootShortName is "foot1" then
+            set the loc of btn "shadowFoot1" to pX,pY
+            set the loc of btn "shadowFoot2" to the loc of btn "foot2"
+            set the loc of btn "shadowFoot3" to the loc of btn "foot3"
+         else if pFootShortName is "foot2" then
+            set the loc of btn "shadowFoot2" to pX,pY
+            set the loc of btn "shadowFoot1" to the loc of btn "foot1"
+            set the loc of btn "shadowFoot3" to the loc of btn "foot3"
+         else if pFootShortName is "foot3" then
+            set the loc of btn "shadowFoot3" to pX,pY
+            set the loc of btn "shadowFoot1" to the loc of btn "foot1"
+            set the loc of btn "shadowFoot2" to the loc of btn "foot2"
+         end if
+         
+         // Get coords of the shadow feet
+         put item 1 of the loc of btn "shadowFoot1" into x1
+         put item 1 of the loc of btn "shadowFoot2" into x2
+         put item 1 of the loc of btn "shadowFoot3" into x3
+         
+         put item 2 of the loc of btn "shadowFoot1" into y1
+         put item 2 of the loc of btn "shadowFoot2" into y2
+         put item 2 of the loc of btn "shadowFoot3" into y3
+         
+         put getTriangleCentroid(x1, x2, x3, y1, y2, y3) into tCentroid // Get centroid
+         
+         // Modify coord parameters to centroid coords
+         put round(item 1 of tCentroid) into pX
+         put round(item 2 of tCentroid) into pY
+         
+      end if
       
-      send "checkForBoundaryCollision pFootShortName, tFootPrevX, tFootPrevY" to me in 1 millisecs // Activate timer to check for boundary cross      
-      move btn pFootShortName to pX,pY in 1.5 secs without waiting
+      put round(sJumpAnimateSpeed / 1.5) into tJumpAnimateSpeed
       
-   else
+      // Set timer for jump back to where the foot was
+      send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, bounce" to me in (tJumpAnimateSpeed + 100) milliseconds // Jump back after short wait
+      send "showPivot 150" to me in (sJumpAnimateSpeed + 250) millisecs // Show the pivot
+      
+   end if
+   
+   if not tJumpCollide then
       
       // Do the jump
       aeLockMoves
-      aeMoveTo the long id of btn pFootShortName,pX,pY,sJumpAnimateSpeed,tJumpEffect
+      aeMoveTo the long id of btn pFootShortName,pX,pY,tJumpAnimateSpeed,tJumpEffect
       aeUnlockMoves
       
    end if
+   
+   
    
    if not tBoundaryHit and not tJumpCollide then // If a boundary hasn't been hit, or the foot hasn't jumped onto a block
       
@@ -744,9 +776,9 @@ on repositionPivot
 end repositionPivot
    
 on jump pFootLoc, pFootShortName
-
+   
    if not sCheckingForWin and not isAnimating() then
-
+      
       resetShowFeet
       
       put "jump" into sCurrentAnimation
@@ -755,7 +787,7 @@ on jump pFootLoc, pFootShortName
       // Cycle through all feet
       
       repeat with tControl = 1 to the number of controls in current card // Go through all card controls
-
+         
          if the class of control tControl is "foot" then // If the control is a foot
             
             put "foot" & tFootCount into tFoot
@@ -769,7 +801,7 @@ on jump pFootLoc, pFootShortName
          end if
          
       end repeat
-
+      
       put 1 into tCount
       repeat for each element tElement in tOtherFeetLocs // For each of the other two foot locations
          put getAngleBetweenPoints(pFootLoc, tElement) into tAngles[tCount] // Get the angle between the swiped foot and the location of the other foot
@@ -784,51 +816,51 @@ on jump pFootLoc, pFootShortName
       // Read angles and work out in which direct the foot needs to jump
       if tAngles[1] is -117 and tAngles[2] is -63 or tAngles[2] is -117 and tAngles[1] is -63 then // N    
          put tY - (sCellWidth * 4) into tY // Amend the y pos of swiped foot
-         //put tPivotY - (sCellWidth * 2) into tPivotY // Amend the y pos of pivot
+         put "N" into tDirection
       else if tAngles[1] is -27 and tAngles[2] is 27 or tAngles[2] is -27 and tAngles[1] is 27 then // E
          put tX + (sCellWidth * 4) into tX
-         //put tPivotX + (sCellWidth * 2) into tPivotX
+         put "E" into tDirection
       else if tAngles[1] is 117 and tAngles[2] is 63 or tAngles[2] is 117 and tAngles[1] is 63 then // S      
          put tY + (sCellWidth * 4) into tY 
-         //put tPivotY + (sCellWidth * 2) into tPivotY
+         put "S" into tDirection
       else if tAngles[1] is -153 and tAngles[2] is 153 or tAngles[2] is -153 and tAngles[1] is 153 then // W
          put tX - (sCellWidth * 4) into tX 
-         //put tPivotX - (sCellWidth * 2) into tPivotX
+         put "W" into tDirection
       else if tAngles[1] is -117 and tAngles[2] is 180 or tAngles[2] is -117 and tAngles[1] is 180 then // NW
          put tY - (sCellWidth * 2) into tY
          put tX - (sCellWidth * 3) into tX
-         //put tPivotX - sCellWidth into tPivotX
+         put "NW" into tDirection
       else if tAngles[1] is -153 and tAngles[2] is -90 or tAngles[2] is -153 and tAngles[1] is -90 then // NNW    
          put tY - (sCellWidth * 3) into tY
          put tX - (sCellWidth * 2) into tX
-         //put tPivotY - sCellWidth into tPivotY
+         put "NNW" into tDirection
       else if tAngles[1] is 0 and tAngles[2] is -63 or tAngles[2] is 0 and tAngles[1] is -63 then // NE
          put tY - (sCellWidth * 2) into tY
          put tX + (sCellWidth * 3) into tX
-         //put tPivotX + sCellWidth into tPivotX
+         put "NE" into tDirection
       else if tAngles[1] is -90 and tAngles[2] is -27 or tAngles[2] is -90 and tAngles[1] is -27 then // NNE    
          put tY - (sCellWidth * 3) into tY
          put tX + (sCellWidth * 2) into tX
-         //put tPivotY - sCellWidth into tPivotY
+         put "NNE" into tDirection
       else if tAngles[1] is 0 and tAngles[2] is 63 or tAngles[2] is 0 and tAngles[1] is 63 then // SE
          put tY + (sCellWidth * 2) into tY
          put tX + (sCellWidth * 3) into tX
-         //put tPivotX + sCellWidth into tPivotX
+         put "SE" into tDirection
       else if tAngles[1] is 90 and tAngles[2] is 27 or tAngles[2] is 90 and tAngles[1] is 27 then // SSE    
          put tY + (sCellWidth * 3) into tY
          put tX + (sCellWidth * 2) into tX
-         //put tPivotY + sCellWidth into tPivotY
+         put "SSE" into tDirection
       else if tAngles[1] is 117 and tAngles[2] is 180 or tAngles[2] is 117 and tAngles[1] is 180 then // SW    
          put tY + (sCellWidth * 2) into tY
          put tX - (sCellWidth * 3) into tX
-         //put tPivotX - sCellWidth into tPivotX
+         put "SW" into tDirection
       else if tAngles[1] is 153 and tAngles[2] is 90 or tAngles[2] is 153 and tAngles[1] is 90 then // SSW    
          put tY + (sCellWidth * 3) into tY
          put tX - (sCellWidth * 2) into tX
-         //put tPivotY + sCellWidth into tPivotY
+         put "SSW" into tDirection
       end if
       
-      goJump tX, tY, tPivotX, tPivotY, pFootShortName // Do the jump, passing in the new x and y coords of the swiped foot and pivot, and the foot name
+      goJump tX, tY, tPivotX, tPivotY, pFootShortName, tDirection // Do the jump, passing in the new x and y coords of the swiped foot and pivot, and the foot name
    end if
 end jump
 
@@ -1146,7 +1178,7 @@ on levelWin
       set the cNewHighScore of cd "level_win" to sMovesCounter
       
       set the cHighScores[tLevelName] of this stack to sMovesCounter // Set the high score for this level to current value of moves counter
-      put "You have also achieved a new personal best for this level of " & sMovesCounter & " moves!" into tNewHighScoreMsg
+      put "You have achieved a new personal best for this level of " & sMovesCounter & " moves!" into tNewHighScoreMsg
       
    else
       
