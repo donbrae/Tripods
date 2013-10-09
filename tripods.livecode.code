@@ -32,12 +32,14 @@ local sPivotAnimateSpeed
 local sCurrentAnimation // Pivot or jump
 local sCollision
 
-on cancelPendingMessages
+## Make sure background animation pending messages are cleared
+
+on cancelPendingMessages   
    
-   repeat with x = 1 to the number of lines of the pendingMessages
-      
-      cancel item 1 of line x of the pendingMessages // Item 1 is the message ID
-      
+   repeat for each line aLine in the pendingMessages
+      if aLine contains "animateBackground" or aLine contains "aeGeneral" or aLine contains "aeMoveTo" then // Item 1 is the message ID
+         cancel item 1 of aLine
+      end if
    end repeat
    
 end cancelPendingMessages
@@ -395,9 +397,20 @@ on flashSprite
    
 end flashSprite
 
+on test
+   
+   aeStopMoving the long ID of btn "bg" of the cd "level"
+   cancelPendingMessages
+   
+end test
+
 on clearLevel
    
    aeStopMoving the long ID of btn "bg" of the cd "level" // Stop background moving
+   
+   // Reset variables and custom properties
+   put "null" into sCurrentAnimation
+   set the pJumpTriggered of the cd "level" to false
    
    // Delete level objects from card
    put the number of buttons of this card into tCount
@@ -417,8 +430,14 @@ on animateBackground
    put "level" into tCard
    
    //send "aeMoveTo the long id of btn tBackground, the width of this card, item 2 of this loc of this card, 7000" to me in 1 millisec // To left 
-   send "aeMoveTo the long id of btn tBackground of the card tCard, 0, item 2 of this loc of this card, 20000" to me in 1 millisecs // To right
-   send "aeMoveTo the long id of btn tBackground, the width of this card, item 2 of this loc of this card, 20000" to me in 20100 millisecs // To left
+   send "aeMoveTo the long id of btn tBackground of the card tCard, 0, item 2 of the loc of this card, 20000" to me in 1 millisecs // To right
+   send "aeMoveTo the long id of btn tBackground of the card tCard, the width of this card, item 2 of the loc of this card, 20000" to me in 20100 millisecs // To left
+   
+   if sGameRunning then
+      
+      send "animateBackground" to me in 40200 millisecs // Repeat animation
+      
+   end if
    
 end animateBackground   
    

@@ -1,0 +1,56 @@
+local sToggle, sState
+
+on moveToggle pToggle
+   
+   put the pAnimating of the cd "settings" into tAnimating
+   
+   if not tAnimating then
+      
+      set the pAnimating of the cd "settings" to true // Flag that an animation is happening
+      
+      put pToggle into sToggle // Store toggle name at script level
+      
+      put the cPrefs[sToggle] of the current stack into sState
+      put the loc of control pToggle into tToggleLoc
+      put 350 into tAnimSpeed
+      
+      // Store toggle backgrounds
+      put the short name of control pToggle & "_bg_off" into tToggleBgOff
+      put the short name of control pToggle & "_bg_on" into tToggleBgOn
+      
+      if sState is "on" then
+         
+         aeLockMoves
+         aeMoveTo the long id of control pToggle, item 1 of tToggleLoc - 55, item 2 of tToggleLoc, tAnimSpeed, "out" // Shunt toggle
+         aeFadeOut the long id of control tToggleBgOn, tAnimSpeed // Fade out "on" background
+         aeFadeIn the long id of control tToggleBgOff, tAnimSpeed // Fade in "off" background
+         aeUnlockMoves
+         
+      else if sState is "off" then
+         
+         aeLockMoves
+         aeMoveTo the long id of control pToggle, item 1 of tToggleLoc + 55, item 2 of tToggleLoc, tAnimSpeed, "inOut"
+         aeFadeOut the long id of control tToggleBgOff, tAnimSpeed / 2
+         aeFadeIn the long id of control tToggleBgOn, tAnimSpeed / 2
+         aeUnlockMoves
+         
+      end if
+      
+   end if
+   
+end moveToggle
+
+## Run when toggling animation has completed
+
+on aeMoveDone
+   
+   // Switch states
+   if sState is "on" then      
+      set the cPrefs[sToggle] of the current stack to "off" // Amend the stacks preferences property set
+   else if sState is "off" then      
+      set the cPrefs[sToggle] of the current stack to "on"
+   end if
+   
+   set the pAnimating of the cd "settings" to false
+   
+end aeMoveDone

@@ -10,6 +10,8 @@ end dragStart
 
 on touchStart
    
+   set the pJumpTriggered of the cd "level" to true
+   
    put item 1 of mouseLoc() into sXLoc
    put item 2 of mouseLoc() into sYLoc
    
@@ -20,10 +22,17 @@ on touchMove
    put item 1 of mouseLoc() into tXOffset
    put item 2 of mouseLoc() into tYOffset
    
-   if abs(tXOffset - sXLoc) > 60 or abs(tYOffset - sYLoc) > 60 then // If swiped by over 30 pixels
+   put the pJumpTriggered of the cd "level" into tJumpTriggered
+   
+   if (abs(tXOffset - sXLoc) > 60 or abs(tYOffset - sYLoc) > 60) and tJumpTriggered then // If swiped by over 30 pixels and jump has been triggered by touchStart
+
       put the loc me into tFootLoc
       put the short name of me into tFootNameShort
       jump tFootLoc, tFootNameShort
+      
+      set the pJumpTriggered of the cd "level" to false // Put flag to false so that further touchMoves don't cause the foot to jump more than once
+      
    end if
      
 end touchMove
+
