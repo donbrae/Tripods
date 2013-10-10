@@ -69,7 +69,7 @@ on openStack
       start using stack "animationEngine"
    end if
    
-   aeSetFrameRate 60 // Set the Animation Engine frame rate
+   aeSetFrameRate 50 // Set the Animation Engine frame rate
    
    if there is a file "moves.txt" then
       put URL ("file:moves.txt") into tTotalMoves // Get total moves used from file
@@ -638,7 +638,7 @@ on showPivot pSpeed
    
    put the long ID of btn "pivot" into tPivot   
    set the layer of tPivot to top
-   aeFadeIn tPivot, pSpeed
+   aePivotFadeIn tPivot, pSpeed
    
 end showPivot
 
