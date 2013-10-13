@@ -36,14 +36,14 @@ on deleteControlsFromCard pCardName
    
 end deleteControlsFromCard
 
+## Get the centroid of tripod
 function getTriangleCentroid x1, x2, x3, y1, y2, y3
    
    return (x1 + x2 +x3) / 3, (y1 + y2 +y3) / 3
    
 end getTriangleCentroid
 
-// Attempt to optimize aeFadeIn as the fade in post-jump aren't always 100% smooth
-
+## Attempt to optimize aeFadeIn as the pivot fade in post-jump aren't always 100% smooth
 on aePivotFadeIn pControl,pDuration
    if there is no pControl then return "aeError: "&pControl&&"is not a valid control reference"
    if pDuration is not a number then return "aeError: Duration is not a number"

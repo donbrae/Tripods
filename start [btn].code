@@ -1,0 +1,21 @@
+on touchStart
+
+   put the cCurrentSet of this stack into tCurrentSetNumber // Get current set number
+   put "level_select_current_set" into tCardName // We want use the "current set" card
+   configLevelSelectionCard tCardName, tCurrentSetNumber // Cnnfigure card for current set
+   configNextLevelSelectCard tCurrentSetNumber // Configure card for next set
+   configPrevLevelSelectCard tCurrentSetNumber // Configure card for previous set
+   go cd tCardName // Go to the first set's card
+   
+end touchStart
+
+on mouseUp
+
+   put the cCurrentSet of this stack into tCurrentSetNumber // Get current set number
+   put "level_select_current_set" into tCardName // We want use the "current set" card
+   configLevelSelectionCard tCardName, tCurrentSetNumber // Cnnfigure card for current set
+   configNextLevelSelectCard tCurrentSetNumber // Configure card for next set
+   configPrevLevelSelectCard tCurrentSetNumber // Configure card for previous set
+   go cd tCardName // Go to the first set's card
+   
+end mouseUp

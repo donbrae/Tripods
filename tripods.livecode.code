@@ -134,8 +134,9 @@ end launchLevel
 ## Copies controls from relevant level template to the actual level card
 
 on configureLevelCard
-
-   put "level" & the cCurrentLevel of this stack into tCurrentLevel // Get level name
+   
+   put the cCurrentSet of this stack into tCurrentSet // Get current set   
+   put "set" & tCurrentSet & "_level" & the cCurrentLevel of this stack into tCurrentLevel // Get level name
    put the customProperties[tCurrentLevel] of this stack into tLevelProperties // Get level's custom properties
    put tLevelProperties into sLevelProperties // Make level properties available to whole script
    put tLevelProperties["cLevelTemplate"] into tTemplateName
@@ -199,11 +200,21 @@ end positionLevelElements
 
 on setupLevel
    
-   put the width of btn "grid" / 8 into sCellWidth // Get width of each circular 'cell'
+   put the width of btn "grid" into tGridWidth // Get width of grid
+   
+   // Get width of each circular 'cell'
+   if tGridWidth is 608 then // 8x8 grid
+      put the width of btn "grid" / 8 into sCellWidth
+   else if tGridWidth is 600 then // 6x6 grid
+      put the width of btn "grid" / 6 into sCellWidth
+   end if
+      
    put sCellWidth / 2 + the left of btn "grid" into tX // Work out starting point on X axis
    put sCellWidth / 2 + the top of btn "grid" into tY // And the Y
    
    put sLevelProperties["cElementPlacement"] into tElPlacement // Get placement grid
+   
+   lock screen
    
    repeat for each line l in tElPlacement -- Cycle through each line
       
@@ -256,6 +267,8 @@ on setupLevel
       
    end repeat   
    
+   unlock screen
+   
    // Bring sprite to top
    set the layer of btn "foot3" to top
    set the layer of btn "foot2" to top
@@ -284,7 +297,7 @@ on setupLevel
    put 340 into sPivotAnimateSpeed // Speed in ms jump
    put 0 into sMovesCounter // Reset move counter
    put false into sCollision // Set collision flag to false
-   put empty into sFootLandingLocs // Empty target foot location array
+   //put empty into sFootLandingLocs // Empty target foot location array
    set the label of button "moves_value" to sMovesCounter // Amend moves counter
    put false into sCheckingForWin // Prevents further moves while code checks to see whether use has positioned feet at the target locations
    put empty into sCurrentAnimation
@@ -520,8 +533,14 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
    set the loc of btn "shadowFoot1" to pX,pY // Set position of a shadow foot to check for imminent collisions  
    put detectCollision() into tJumpCollide
    
+   if tBoundaryHit then 
+      put 10 into tJumpAnimTimer
+   else
+      put 14 into tJumpAnimTimer
+   end if
+   
    send "hidePivot 100" to me in 1 millisecs // Fade out pivot   
-   animateFoot pFootShortName, 12 // Start foot 'jump' animation
+   animateFoot pFootShortName, tJumpAnimTimer // Start foot 'jump' animation
    
    if tJumpCollide and not tBoundaryHit then // If the foot will jump onto a block
       
@@ -531,7 +550,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
       aeMoveTo the long id of btn pFootShortName,pX,pY,sJumpAnimateSpeed,tJumpEffect
       aeUnlockMoves
       
-      send "animateFoot pFootShortName, 18" to me in sJumpAnimateSpeed + 400 millisecs // Start foot 'jump' animation
+      send "animateFoot pFootShortName, 20" to me in sJumpAnimateSpeed + 400 millisecs // Start foot 'jump' animation
       send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, inOut" to btn pFootShortName in sJumpAnimateSpeed + 400 millisecs // Call jumpBack() after a short interval
       send "showPivot 150" to me in sJumpAnimateSpeed + 700 millisecs // Fade pivot back in
       
@@ -599,8 +618,6 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
       aeUnlockMoves
       
    end if
-   
-   
    
    if not tBoundaryHit and not tJumpCollide then // If a boundary hasn't been hit, or the foot hasn't jumped onto a block
       
@@ -1175,7 +1192,8 @@ on levelWin
    
    put false into tNewHighScore
    
-   put "level" & the cCurrentLevel of this stack into tLevelName // Get level name
+   put the cCurrentSet of this stack into tCurrentSet // Get current set
+   put "set" & tCurrentSet & "_level" & the cCurrentLevel of this stack into tLevelName // Get level name
    put the cHighScores[tLevelName] of this stack into tCurrentHighScore // Get previous high score (will be empty on first attempt)
    
    set the cCurrentHighScore of cd "level_win" to tCurrentHighScore // Set current high score property of win card (could be empty)
@@ -1211,6 +1229,10 @@ on levelWin
    
    set the cStarRating of cd "level_win" to calculateStarRating() // Get and set star rating
    set the cLevelMoves of cd "level_win" to sMovesCounter // Store moves counter in win card custom property
+   
+   put "set" & the cCurrentSet of the current stack & "_level" & the cCurrentLevel of the current stack + 1 into tNextLevel // Get next level name
+   
+   set the LevelLocking[tNextLevel] of the current stack to true // Unlock next level
       
 end levelWin
 
@@ -1248,6 +1270,148 @@ function isAnimating
    end if
    
 end isAnimating
+
+on configLevelSelectionCard pCardName, pSetNumber
+   
+   deleteControlsFromCard pCardName // Delete any pre-existing controls from card   
+   
+   repeat with tControl = 1 to the number of controls in cd "level_select_template" // Go through all controls in template card
+      copy control tControl of cd "level_select_template" to cd pCardName // Copy them over to the relevant actual level selection card
+      //set the loc of it to -200,-200 // Hide it off-screen
+   end repeat
+
+   put the width of cd pCardName into tCardWidth // Get card width
+   put round(tCardWidth / 23) into tPadding // Work out padding
+   put tCardWidth - (tPadding * 2) into tCardWidth // New width of card minus padding
+   put round(tCardWidth / 4.7) into tBtnDiameter // Calculate button diameter   
+   put tCardWidth / 4 into tDiv // Width of 1/4 of card   
+   put (tDiv / 2) + tPadding into tX // Work out starting point on X axis
+   put (tDiv / 2) + tPadding into tY // And the Y
+   
+   put the customPropertySets of the current stack into tCustomPropertySets // Get stack custom property sets
+   
+   put 1 into tCount
+   repeat for each line tProperty in tCustomPropertySets // Cycle through sets
+      
+      if "set" & pSetNumber is in tProperty then // If we find a level for this set
+         
+         put tProperty into tLevelsInSet[tCount] // Add it to array
+         
+         put tCount + 1 into tCount // tCount++
+         
+      end if
+      
+   end repeat
+   
+   // Add relevant number of buttons to page
+   
+   put the number of lines of (the keys of tLevelsInSet) into tLevelsArrayLength // Get array length
+   
+   repeat with x = 1 to tLevelsArrayLength // Go through all levels in this set
+      
+      // Clone button and set dimensions and loc
+      clone graphic "btn_bg" of cd pCardName
+      set the name of it to "btn_bg" & x
+      set the width of it to tBtnDiameter
+      set the height of it to tBtnDiameter
+      set the loc of it to tX,tY
+      clone fld "level_number" of cd pCardName
+      set the name of it to "level_number" & x
+      set the width of it to tBtnDiameter
+      set the height of it to tBtnDiameter
+      set the loc of it to tX,tY
+      put "level_number" & x into tFieldName
+      put x into fld tFieldName of cd pCardName
+      
+      put tX + tDiv into tX
+      
+      if tX > the width of cd pCardName then // If we've come to the end of the row
+         
+         put (tDiv / 2) + tPadding into tX // Back to first column
+         put tY + tBtnDiameter + tPadding into tY // Next row
+         
+      end if      
+      
+   end repeat
+   
+   // Add relevant level details to each button
+   
+   repeat with x = 1 to tLevelsArrayLength
+      
+      put "level_number" & x into tLevelField // Get name of field x
+      set the cLevel of fld tLevelField of cd pCardName to x // Set the cLevel property to the corresponding level number. This will be used to go to the correct card when the button is tapped
+      
+      put "set" & pSetNumber & "_level" & x into tLevelName
+      
+      if the LevelLocking[tLevelName] of the current stack is false then // If this level is locked
+         put "btn_bg" & x into tGraphicName
+         set the opaque of graphic tGraphicName of cd pCardName to true // Set the opaque of the background graphic to full
+         set the blendLevel of graphic tGraphicName of cd pCardName to 61 // Fade button bg
+         set the blendLevel of fld tLevelField of cd pCardName to 28 // Fade button value
+         set the cUnlocked of fld tLevelField of cd pCardName to false // Mark that this field is locked
+      else
+         set the cUnlocked of fld tLevelField of cd pCardName to true // Mark that this field is unlocked
+      end if
+      
+   end repeat
+   
+end configLevelSelectionCard
+
+## Creates a card for the next set (if there is one) so that the user can swipe to it
+on configNextLevelSelectCard pCurrentSetNumber
+   
+   put false into tThereIsANextSet // Set flag to false
+   set the cNextSet of this stack to empty // Assume there isn't a next set by default
+   put pCurrentSetNumber + 1 into tNextSet // What the next set would be
+   
+   put the customPropertySets of the current stack into tCustomPropertySets
+   
+   repeat for each line tProperty in tCustomPropertySets // Cycle through sets
+      
+      if tNextSet is in tProperty then // If we find a property for another set         
+         put true into tThereIsANextSet // That means we need to create a card for the next set to allow the user to swipe     
+         exit repeat
+      end if
+      
+   end repeat
+   
+   if tThereIsANextSet then
+      
+      set the cNextSet of this stack to tNextSet // Set stack's custom property for querying by other scripts
+      put "level_select_next_set" into tCardName // We want use the "next set" card
+      configLevelSelectionCard tCardName, tNextSet // Create card for the next set
+      
+   end if
+   
+end configNextLevelSelectCard
+
+## Creates a card for the previous set (if there is one) so that the user can swipe to it
+on configPrevLevelSelectCard pCurrentSetNumber
+   
+   put false into tThereIsAPrevSet // Set flag to false
+   set the cPrevSet of this stack to empty // Assume there isn't a previous set by default
+   put pCurrentSetNumber - 1 into tPrevSet // What the previous set would be
+   
+   put the customPropertySets of the current stack into tCustomPropertySets
+   
+   repeat for each line tProperty in tCustomPropertySets // Cycle through sets
+      
+      if tPrevSet is in tProperty then // If we find a property for another set         
+         put true into tThereIsAPrevSet // That means we need to create a card for the previous set to allow the user to swipe     
+         exit repeat
+      end if
+      
+   end repeat
+   
+   if tThereIsAPrevSet then
+      
+      set the cPrevSet of this stack to tPrevSet // Set stack's custom property for querying by other scripts
+      put "level_select_prev_set" into tCardName // We want use the "prev set" card
+      configLevelSelectionCard tCardName, tPrevSet // Create card for the previous set
+      
+   end if
+   
+end configPrevLevelSelectCard
 
 on shutdown
    

@@ -11,16 +11,31 @@ on preOpenCard
    set the visible of btn "star2_outline" to true
    set the visible of btn "star3_outline" to true
    
-   put the cWinMsg of this card into fld "win_message" // Display win message
    put the cNewHighScoreMsg of this card into fld "high_score_message" // Display any high-score message
    
    put the cCurrentLevel of this stack into tLevel // Get level number
    put tLevel + 1 into tNextLevel // Get next level number
    
-   if "level" & tNextLevel is among the lines of the customPropertySets of the current stack then // If the next level exists
+   put the cCurrentSet of the current stack into tCurrentSet // Get set number
+   put "set" & tCurrentSet & "_level" & tNextLevel into tNextLevelName // What the next level in this set would be called
+   put "set" & tCurrentSet + 1 & "_level1" into tNextSetLevel1Name // What the first level of the next set would be called
+   
+   if tNextLevelName is among the lines of the customPropertySets of the current stack then // If the next level in the current set exists
+      
+      set the LevelLocking[tNextLevelName] of the current stack to true // Unlock next level
+      set the cNext of me to "level" // Set custom property on this card
       set the visible of btn "next_level" to true // Show "next level" button
+      
+   else if tNextSetLevel1Name is among the lines of the customPropertySets of the current stack then // If we've completed this set and there is another set to come
+      
+      set the LevelLocking[tNextSetLevel1Name] of the current stack to true // Unlock the first level of the next set
+      set the cNext of me to "set"
+      set the visible of btn "next_level" to true
+        
    else
-      set the visible of btn "next_level" to false // Hide "next level" button
+      
+      set the visible of btn "next_level" to false // We've reached the end of the game. Hide "next level" button
+      
    end if
    
    // Position and hide navigation
@@ -35,6 +50,24 @@ on preOpenCard
    calculatePoints tLevel
    
 end preOpenCard
+
+## When the Home of Next buttons of the win screen are tapped, we need to update the custom properties which track where the player is in the game
+on updateProgressData
+   
+   put the cNext of me into tNext
+   
+   if tNext is "level" then
+      
+      set the cCurrentLevel of this stack to the cCurrentLevel of this stack + 1 // Increment level custom property
+      
+   else if tNext is "set" then
+      
+      set the cCurrentLevel of this stack to 1 // Put to level 1...
+      set the cCurrentSet of this stack to the cCurrentSet of this stack + 1 // ...of the next stack
+      
+   end if
+   
+end updateProgressData
 
 ## Calculate level and total points
 on calculatePoints pLevel
@@ -80,7 +113,7 @@ on calculatePoints pLevel
    set the cTotalPoints of this stack to tNewTotalPoints // Set the stack-level custom property for total points
    
    // Display these new values to user
-   put tPointsWonThisLevel & " points gained" into fld "points"
+   put "+" & tPointsWonThisLevel & " points" into fld "points"
    put tNewTotalPoints & " total points" into fld "total_points"
    
 end calculatePoints
