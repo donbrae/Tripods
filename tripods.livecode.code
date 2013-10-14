@@ -1271,19 +1271,20 @@ function isAnimating
    
 end isAnimating
 
-on configLevelSelectionCard pCardName, pSetNumber
+on configLevelSelectionCard pSetNumber
    
-   deleteControlsFromCard pCardName // Delete any pre-existing controls from card   
+   put "level_select" into tCardName // Level-selection card name
+   
+   deleteControlsFromCard tCardName // Delete any pre-existing controls from level-selection card   
    
    repeat with tControl = 1 to the number of controls in cd "level_select_template" // Go through all controls in template card
-      copy control tControl of cd "level_select_template" to cd pCardName // Copy them over to the relevant actual level selection card
-      //set the loc of it to -200,-200 // Hide it off-screen
+      copy control tControl of cd "level_select_template" to cd tCardName // Copy them over to the relevant actual level selection card
    end repeat
 
-   put the width of cd pCardName into tCardWidth // Get card width
-   put round(tCardWidth / 23) into tPadding // Work out padding
+   put the width of cd tCardName into tCardWidth // Get card width
+   put round(tCardWidth / 8) into tPadding // Work out padding
    put tCardWidth - (tPadding * 2) into tCardWidth // New width of card minus padding
-   put round(tCardWidth / 4.7) into tBtnDiameter // Calculate button diameter   
+   put round(tCardWidth / 5) into tBtnDiameter // Calculate button diameter   
    put tCardWidth / 4 into tDiv // Width of 1/4 of card   
    put (tDiv / 2) + tPadding into tX // Work out starting point on X axis
    put (tDiv / 2) + tPadding into tY // And the Y
@@ -1310,22 +1311,22 @@ on configLevelSelectionCard pCardName, pSetNumber
    repeat with x = 1 to tLevelsArrayLength // Go through all levels in this set
       
       // Clone button and set dimensions and loc
-      clone graphic "btn_bg" of cd pCardName
+      clone graphic "btn_bg" of cd tCardName
       set the name of it to "btn_bg" & x
       set the width of it to tBtnDiameter
       set the height of it to tBtnDiameter
       set the loc of it to tX,tY
-      clone fld "level_number" of cd pCardName
+      clone fld "level_number" of cd tCardName
       set the name of it to "level_number" & x
       set the width of it to tBtnDiameter
       set the height of it to tBtnDiameter
       set the loc of it to tX,tY
       put "level_number" & x into tFieldName
-      put x into fld tFieldName of cd pCardName
+      put x into fld tFieldName of cd tCardName
       
       put tX + tDiv into tX
       
-      if tX > the width of cd pCardName then // If we've come to the end of the row
+      if tX > the width of cd tCardName - tPadding then // If we've come to the end of the row
          
          put (tDiv / 2) + tPadding into tX // Back to first column
          put tY + tBtnDiameter + tPadding into tY // Next row
@@ -1339,18 +1340,18 @@ on configLevelSelectionCard pCardName, pSetNumber
    repeat with x = 1 to tLevelsArrayLength
       
       put "level_number" & x into tLevelField // Get name of field x
-      set the cLevel of fld tLevelField of cd pCardName to x // Set the cLevel property to the corresponding level number. This will be used to go to the correct card when the button is tapped
+      set the cLevel of fld tLevelField of cd tCardName to x // Set the cLevel property to the corresponding level number. This will be used to go to the correct card when the button is tapped
       
       put "set" & pSetNumber & "_level" & x into tLevelName
       
       if the LevelLocking[tLevelName] of the current stack is false then // If this level is locked
          put "btn_bg" & x into tGraphicName
-         set the opaque of graphic tGraphicName of cd pCardName to true // Set the opaque of the background graphic to full
-         set the blendLevel of graphic tGraphicName of cd pCardName to 61 // Fade button bg
-         set the blendLevel of fld tLevelField of cd pCardName to 28 // Fade button value
-         set the cUnlocked of fld tLevelField of cd pCardName to false // Mark that this field is locked
+         set the opaque of graphic tGraphicName of cd tCardName to true // Set the opaque of the background graphic to full
+         set the blendLevel of graphic tGraphicName of cd tCardName to 61 // Fade button bg
+         set the blendLevel of fld tLevelField of cd tCardName to 28 // Fade button value
+         set the cUnlocked of fld tLevelField of cd tCardName to false // Mark that this field is locked
       else
-         set the cUnlocked of fld tLevelField of cd pCardName to true // Mark that this field is unlocked
+         set the cUnlocked of fld tLevelField of cd tCardName to true // Mark that this field is unlocked
       end if
       
    end repeat
