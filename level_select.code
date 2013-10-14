@@ -1,0 +1,87 @@
+local xStart, xLocOnTouchStart, sStopRespondingToTouchMoves, sCurrentAnimation, sTouchStart
+
+on openCard
+   
+   put false into sStopRespondingToTouchMoves
+   put empty into sCurrentAnimation
+   
+end openCard
+
+on touchStart
+   
+   put true into sTouchStart
+   put item 1 of mouseLoc() into xStart // Get x of finger position   
+   put item 1 of the loc of group "levels" into xLocOnTouchStart // Get x of group starting position loc
+   
+   if sCurrentAnimation is empty then
+      
+      put false into sStopRespondingToTouchMoves // We want to let our touchMove function respond to movement
+      
+   end if
+   
+end touchStart
+
+on touchmove  
+   
+   if not sStopRespondingToTouchMoves and sCurrentAnimation is empty then // If we're to respond to touch moves and a shunt animation is not currently taking place
+      
+      put item 1 of mouseLoc() into xDiffOffset // Get the new x of finger position
+
+      if xStart < xDiffOffset then // If we're moving our finger to the right
+         
+         put xDiffOffset - xStart into tDistanceMoved // Get the distance moved
+         
+         if tDistanceMoved > 100 then // If we've moved over a certain distance
+            put true into sStopRespondingToTouchMoves // Stop the touchmove handler from responding to further touches
+            
+            put item 1 of the loc of graphic "rec2" - item 1 of the loc of graphic "rec1" into tDistanceBetweenSetLocs // Get the distance between the locations of the sets
+            
+            aeLockMoves
+            
+            aeMoveTo the long id of graphic "rec1", item 1 of the loc of this card, item 2 of the loc of this card, 300, "overshoot"
+            aeMoveTo the long id of graphic "rec2", item 1 of the loc of this card + tDistanceBetweenSetLocs, item 2 of the loc of this card, 300, "overshoot"
+            
+            aeUnLockMoves
+            
+         else // If we've moved less than the specified distance
+            
+            set the loc of group "levels" to xLocOnTouchStart + tDistanceMoved , item 2 of the loc of group "levels" // Move the group of sets
+            
+         end if
+   
+      end if
+      
+      // Move left
+      if hdiff > hdiffOffset then 
+         
+      end if
+      
+   end if
+   
+end touchmove
+
+on touchEnd
+
+end touchEnd
+
+## Called by AE when an animation has completed
+
+on aeMoveDone
+   
+   //if sCurrentAnimation is "shuntSet" and sSetShuntCount < sNumberOfSets then // If a set has been shunted
+      
+      //put sSetShuntCount + 1 into sSetShuntCount // Add 1 to card shunt count
+      
+   //else if sCurrentAnimation is "shuntSet" and sSetShuntCount is sNumberOfSets then // If all sets have been shunted
+      
+      //put empty into sCurrentAnimation
+            
+   //end if
+   
+end aeMoveDone
+
+on closeCard
+   if environment() = "mobile" then
+      iphoneClearTouches
+   end if
+end closeCard
