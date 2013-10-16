@@ -1271,28 +1271,10 @@ function isAnimating
    
 end isAnimating
 
-on configLevelSelectionCard pSetNumber
-   
-   put "level_select" into tCardName // Level-selection card name
-   
-   deleteControlsFromCard tCardName // Delete any pre-existing controls from level-selection card   
-   
-   repeat with tControl = 1 to the number of controls in cd "level_select_template" // Go through all controls in template card
-      copy control tControl of cd "level_select_template" to cd tCardName // Copy them over to the relevant actual level selection card
-   end repeat
-
-   put the width of cd tCardName into tCardWidth // Get card width
-   put round(tCardWidth / 8) into tPadding // Work out padding
-   put tCardWidth - (tPadding * 2) into tCardWidth // New width of card minus padding
-   put round(tCardWidth / 5) into tBtnDiameter // Calculate button diameter   
-   put tCardWidth / 4 into tDiv // Width of 1/4 of card   
-   put (tDiv / 2) + tPadding into tX // Work out starting point on X axis
-   put (tDiv / 2) + tPadding into tY // And the Y
-   
-   put the customPropertySets of the current stack into tCustomPropertySets // Get stack custom property sets
+on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCustomPropertySets
    
    put 1 into tCount
-   repeat for each line tProperty in tCustomPropertySets // Cycle through sets
+   repeat for each line tProperty in pCustomPropertySets // Cycle through sets
       
       if "set" & pSetNumber is in tProperty then // If we find a level for this set
          
@@ -1308,28 +1290,32 @@ on configLevelSelectionCard pSetNumber
    
    put the number of lines of (the keys of tLevelsInSet) into tLevelsArrayLength // Get array length
    
+   copy group "set_template" of cd pCardName to group "all_sets" of cd pCardName // Clone the empty group we'll use as set for group (placing it in the parent group for all sets)
+   put "set" & pSetNumber into tSetName
+   set the name of it to tSetName // Set its name
+   
    repeat with x = 1 to tLevelsArrayLength // Go through all levels in this set
       
       // Clone button and set dimensions and loc
-      clone graphic "btn_bg" of cd tCardName
+      copy graphic "btn_bg" of cd pCardName to group tSetName of cd pCardName // Make a copy of button bg and add to set's group
       set the name of it to "btn_bg" & x
-      set the width of it to tBtnDiameter
-      set the height of it to tBtnDiameter
-      set the loc of it to tX,tY
-      clone fld "level_number" of cd tCardName
+      set the width of it to pBtnDiameter
+      set the height of it to pBtnDiameter
+      set the loc of it to pX, pY
+      copy fld "level_number" of cd pCardName to group tSetName of cd pCardName // Do the same for the field
       set the name of it to "level_number" & x
-      set the width of it to tBtnDiameter
-      set the height of it to tBtnDiameter
-      set the loc of it to tX,tY
+      set the width of it to pBtnDiameter
+      set the height of it to pBtnDiameter
+      set the loc of it to pX, pY
       put "level_number" & x into tFieldName
-      put x into fld tFieldName of cd tCardName
+      put x into fld tFieldName of group tSetName of cd pCardName // Add level number to field
       
-      put tX + tDiv into tX
+      put pX + pDiv into pX // Move along in row
       
-      if tX > the width of cd tCardName - tPadding then // If we've come to the end of the row
+      if pX > the width of cd pCardName - pPadding then // If we've come to the end of the row
          
-         put (tDiv / 2) + tPadding into tX // Back to first column
-         put tY + tBtnDiameter + tPadding into tY // Next row
+         put (pDiv / 2) + pPadding into pX // Back to first column
+         put pY + pBtnDiameter + pPadding into pY // Next row
          
       end if      
       
@@ -1340,79 +1326,109 @@ on configLevelSelectionCard pSetNumber
    repeat with x = 1 to tLevelsArrayLength
       
       put "level_number" & x into tLevelField // Get name of field x
-      set the cLevel of fld tLevelField of cd tCardName to x // Set the cLevel property to the corresponding level number. This will be used to go to the correct card when the button is tapped
+      set the cLevel of fld tLevelField of group tSetName of cd pCardName to x // Set the cLevel property to the corresponding level number. This will be used to go to the correct card when the button is tapped
       
       put "set" & pSetNumber & "_level" & x into tLevelName
       
       if the LevelLocking[tLevelName] of the current stack is false then // If this level is locked
          put "btn_bg" & x into tGraphicName
-         set the opaque of graphic tGraphicName of cd tCardName to true // Set the opaque of the background graphic to full
-         set the blendLevel of graphic tGraphicName of cd tCardName to 61 // Fade button bg
-         set the blendLevel of fld tLevelField of cd tCardName to 28 // Fade button value
-         set the cUnlocked of fld tLevelField of cd tCardName to false // Mark that this field is locked
+         set the opaque of graphic tGraphicName of group tSetName of cd pCardName to true // Set the opaque of the background graphic to full
+         set the blendLevel of graphic tGraphicName of group tSetName of cd pCardName to 61 // Fade button bg
+         set the blendLevel of fld tLevelField of group tSetName of cd pCardName to 28 // Fade button value
+         set the cUnlocked of fld tLevelField of group tSetName of cd pCardName to false // Mark that this field is locked
       else
-         set the cUnlocked of fld tLevelField of cd tCardName to true // Mark that this field is unlocked
+         set the cUnlocked of fld tLevelField of group tSetName of cd pCardName to true // Mark that this field is unlocked
       end if
       
    end repeat
+   
+end createSet
+
+## Controls creation of set/level selection groups (panels allowing the user to select which level and set they'd like to play)
+
+on configLevelSelectionCard pSetNumber
+
+   // Setup
+   put the cNumberOfSets of the current stack into tNumberOfSets // Get number of sets   
+   put "level_select" into tCardName // Get level-selection card name   
+   deleteControlsFromCard tCardName // Delete any pre-existing controls from level-selection card   
+   
+   repeat with tControl = 1 to the number of controls in cd "level_select_template" // Go through all controls in template card
+      
+      copy control tControl of cd "level_select_template" to cd tCardName // Copy them over to the relevant actual level selection card
+      
+   end repeat
+   
+   put the width of cd tCardName into tCardWidth // Get card width
+   put round(tCardWidth / 7) into tPadding // Work out padding
+   put tCardWidth - (tPadding * 2) into tCardWidth // New width of card minus padding
+   put round(tCardWidth / 4.5) into tBtnDiameter // Calculate button diameter   
+   put tCardWidth / 4 into tDiv // Width of 1/4 of card   
+   put (tDiv / 2) + tPadding into tX // Work out starting point on X axis
+   put (tDiv / 2) + tPadding into tY // And the Y
+   
+   put the customPropertySets of the current stack into tCustomPropertySets // Get stack custom property sets
+ 
+   repeat with i = 1 to tNumberOfSets
+      
+      createSet i, tCardName, tPadding, tBtnDiameter, tDiv, tX, tY, tCustomPropertySets // Go create the set of levels
+      
+   end repeat
+   
+   positionSets tCardName, tCardWidth, tBtnDiameter // Position the newly created groups of sets
    
 end configLevelSelectionCard
 
-## Creates a card for the next set (if there is one) so that the user can swipe to it
-on configNextLevelSelectCard pCurrentSetNumber
+on positionSets pCardName, pCardWidth, pBtnDiameter
    
-   put false into tThereIsANextSet // Set flag to false
-   set the cNextSet of this stack to empty // Assume there isn't a next set by default
-   put pCurrentSetNumber + 1 into tNextSet // What the next set would be
+   local tNumberOfSets, tPrevGroupLocX, tPrevSetName, tSetName, tSet2GroupLocX, tDistanceBetweenLocs, tCurrentSet, tCurrentSetName, tCurrentSetLocX, tCardLocX, tDistanceToMove, tNewXLoc
    
-   put the customPropertySets of the current stack into tCustomPropertySets
+   put the cNumberOfSets of the current stack into tNumberOfSets // Get number of sets
    
-   repeat for each line tProperty in tCustomPropertySets // Cycle through sets
+   repeat with i = 1 to tNumberOfSets
       
-      if tNextSet is in tProperty then // If we find a property for another set         
-         put true into tThereIsANextSet // That means we need to create a card for the next set to allow the user to swipe     
-         exit repeat
+      if i is 1 then // Position first set
+         
+         set the loc of group "set1" of cd pCardName to the loc of this card
+         
+      else if i is 2 then // Position set 2       
+         
+         put item 1 of the loc of group "set1" of cd pCardName into tPrevGroupLocX // Get x loc of set 1         
+         put "set" & i into tSetName // Get set name         
+         set the left of group tSetName of cd pCardName to the right of cd pCardName - (pBtnDiameter / 2) // Position group so half of the first button of the next set is showing at the right of the card
+         set the loc of group tSetName of cd pCardName to item 1 of the loc of group tSetName of cd pCardName, item 2 of the loc of this card // Deal with group's Y position
+         put item 1 of the loc of group tSetName of cd pCardName into tSet2GroupLocX // Get x loc of set 2         
+         put tSet2GroupLocX - tPrevGroupLocX into tDistanceBetweenLocs // Store distance between the locs of set 1 and set 2
+         
+      else
+         
+         put "set" & i - 1 into tPrevSetName // Get previous set's name
+         put item 1 of the loc of group tPrevSetName of cd pCardName into tPrevGroupLocX // Get x loc of previous set's group         
+         put "set" & i into tSetName // Get set name         
+         set the loc of group tSetName of cd pCardName to tPrevGroupLocX + tDistanceBetweenLocs, item 2 of the loc of this card // Position group relative to previous
+         
       end if
       
    end repeat
    
-   if tThereIsANextSet then
-      
-      set the cNextSet of this stack to tNextSet // Set stack's custom property for querying by other scripts
-      put "level_select_next_set" into tCardName // We want use the "next set" card
-      configLevelSelectionCard tCardName, tNextSet // Create card for the next set
-      
-   end if
+   // Position current set's group at the centre
    
-end configNextLevelSelectCard
-
-## Creates a card for the previous set (if there is one) so that the user can swipe to it
-on configPrevLevelSelectCard pCurrentSetNumber
+   put the cCurrentSet of this stack into tCurrentSet
+   put "set" & tCurrentSet into tCurrentSetName
    
-   put false into tThereIsAPrevSet // Set flag to false
-   set the cPrevSet of this stack to empty // Assume there isn't a previous set by default
-   put pCurrentSetNumber - 1 into tPrevSet // What the previous set would be
+   put item 1 of the loc of group tCurrentSetName of cd pCardName into tCurrentSetLocX // Where is current set's x loc?
+   put item 1 of the loc of this card into tCardLocX // What is card's x loc?
    
-   put the customPropertySets of the current stack into tCustomPropertySets
-   
-   repeat for each line tProperty in tCustomPropertySets // Cycle through sets
+   if tCurrentSetLocX is not tCardLocX then // If we're not on first set
       
-      if tPrevSet is in tProperty then // If we find a property for another set         
-         put true into tThereIsAPrevSet // That means we need to create a card for the previous set to allow the user to swipe     
-         exit repeat
-      end if
+      put tCurrentSetLocX - tCardLocX into tDistanceToMove // Work out how much we need to move to position current set centrally
       
-   end repeat
-   
-   if tThereIsAPrevSet then
-      
-      set the cPrevSet of this stack to tPrevSet // Set stack's custom property for querying by other scripts
-      put "level_select_prev_set" into tCardName // We want use the "prev set" card
-      configLevelSelectionCard tCardName, tPrevSet // Create card for the previous set
+      put item 1 of the loc of group "all_sets" of cd pCardName - tDistanceToMove into tNewXLoc
+      set the loc of group "all_sets" of cd pCardName to tNewXLoc, item 2 of the loc of group "all_sets" of cd pCardName // Move sets' parent group so that current set's group is centered
       
    end if
    
-end configPrevLevelSelectCard
+end positionSets
 
 on shutdown
    

@@ -1,66 +1,77 @@
-local xStart, xLocOnTouchStart, sStopRespondingToTouchMoves, sCurrentAnimation, sTouchStart
+local xStart, xLocOnTouchStart, sStopRespondingToTouchMoves, sCurrentAnimation, sAllSets, sCurrentSet, sNewSet
 
 on openCard
    
    put false into sStopRespondingToTouchMoves
    put empty into sCurrentAnimation
+   put "all_sets" into sAllSets
    
 end openCard
 
-on touchStart
+on goToSet pSet
    
-   put true into sTouchStart
-   put item 1 of mouseLoc() into xStart // Get x of finger position   
-   put item 1 of the loc of group "levels" into xLocOnTouchStart // Get x of group starting position loc
+   put "shuntSets" into sCurrentAnimation
+   put true into sStopRespondingToTouchMoves // Stop the touchmove handler from responding to further touches
+   put "set" & pSet into tNewSetName
+   put the cNumberOfSets of the current stack + 1 into tLimit   
    
-   if sCurrentAnimation is empty then
+   if pSet < tLimit and pSet > 0 then // If the stack we intend to go to exists
       
-      put false into sStopRespondingToTouchMoves // We want to let our touchMove function respond to movement
+      put item 1 of the loc of group tNewSetName into tNewSetCurrentLocX // Where is new set's x loc?
+      put item 1 of the loc of this card into tCardLocX // What is card's x loc?
+      
+      put tNewSetCurrentLocX - tCardLocX into tDistanceToMove // Work out how much we need to move to position the desired set centrally      
+      put item 1 of the loc of group "all_sets" - tDistanceToMove into tNewXLoc // Get new x loc
+      
+      put pSet into sNewSet // Store at script level
+      
+      aeMoveTo the long id of group sAllSets, tNewXLoc, item 2 of the loc of group sAllSets, 400, "overshoot" // Move sets' parent group so that pSet group is centered
+      
+      //put pSet into sCurrentSet // Update current set
+      
+   else // If we're not able to swipe to a earlier or later level
+      
+      aeMoveTo the long id of group sAllSets, xLocOnTouchStart, item 2 of the loc of group sAllSets, 400, "overshoot" // Move to last set settled on
       
    end if
    
+end goToSet
+
+on touchStart
+   
+   put empty into sNewSet
+   put item 1 of mouseLoc() into xStart // Get x of finger position   
+   put item 1 of the loc of group sAllSets into xLocOnTouchStart // Get x of group starting position loc
+   put the cCurrentSet of the current stack into sCurrentSet
+   
 end touchStart
 
-on touchmove  
+on touchmove
    
    if not sStopRespondingToTouchMoves and sCurrentAnimation is empty then // If we're to respond to touch moves and a shunt animation is not currently taking place
       
-      put item 1 of mouseLoc() into xDiffOffset // Get the new x of finger position
-
-      if xStart < xDiffOffset then // If we're moving our finger to the right
-         
-         put xDiffOffset - xStart into tDistanceMoved // Get the distance moved
-         
-         if tDistanceMoved > 100 then // If we've moved over a certain distance
-            put true into sStopRespondingToTouchMoves // Stop the touchmove handler from responding to further touches
-            
-            put item 1 of the loc of graphic "rec2" - item 1 of the loc of graphic "rec1" into tDistanceBetweenSetLocs // Get the distance between the locations of the sets
-            
-            aeLockMoves
-            
-            aeMoveTo the long id of graphic "rec1", item 1 of the loc of this card, item 2 of the loc of this card, 300, "overshoot"
-            aeMoveTo the long id of graphic "rec2", item 1 of the loc of this card + tDistanceBetweenSetLocs, item 2 of the loc of this card, 300, "overshoot"
-            
-            aeUnLockMoves
-            
-         else // If we've moved less than the specified distance
-            
-            set the loc of group "levels" to xLocOnTouchStart + tDistanceMoved , item 2 of the loc of group "levels" // Move the group of sets
-            
-         end if
-   
-      end if
+      put item 1 of mouseLoc() into xDiffOffset // Get the new x of finger position      
+      put xDiffOffset - xStart into tDistanceMoved // Get the distance moved      
+      set the loc of group sAllSets to xLocOnTouchStart + tDistanceMoved, item 2 of the loc of group sAllSets // Move the group of sets      
+      put "set" & sCurrentSet into tSet // Set name
       
-      // Move left
-      if hdiff > hdiffOffset then 
+      if item 1 of the loc of group tSet < 0 then
          
-      end if
-      
+         goToSet sCurrentSet + 1 // Go to next set
+         
+      else if item 1 of the loc of group tSet > the width of this card then
+         
+         goToSet sCurrentSet - 1 // Go to prev set
+         
+      end if         
+       
    end if
    
 end touchmove
 
 on touchEnd
+   
+   put false into sStopRespondingToTouchMoves // We want to let our touchMove function respond to movement
 
 end touchEnd
 
@@ -68,20 +79,21 @@ end touchEnd
 
 on aeMoveDone
    
-   //if sCurrentAnimation is "shuntSet" and sSetShuntCount < sNumberOfSets then // If a set has been shunted
+   if sCurrentAnimation is "shuntSets" then // If the sets have been shunted
       
-      //put sSetShuntCount + 1 into sSetShuntCount // Add 1 to card shunt count
+      put empty into sCurrentAnimation
+      if sNewSet is not empty then
+         
+         set the cCurrentSet of the current stack to sNewSet // Update current set number
+         
+      end if
       
-   //else if sCurrentAnimation is "shuntSet" and sSetShuntCount is sNumberOfSets then // If all sets have been shunted
-      
-      //put empty into sCurrentAnimation
-            
-   //end if
+   end if
    
 end aeMoveDone
 
 on closeCard
-   if environment() = "mobile" then
-      iphoneClearTouches
-   end if
+   //if environment() = "mobile" then
+      //iphoneClearTouches
+   //end if
 end closeCard
