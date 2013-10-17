@@ -1,16 +1,52 @@
-local xStart, xLocOnTouchStart, sStopRespondingToTouchMoves, sCurrentAnimation, sAllSets, sCurrentSet, sNewSet
+local sStopRespondingToTouchMoves
 
 on openCard
    
+   if the environment is "mobile" then      
+      
+      set the loc of btn "bg" to the loc of this cd
+      
+   end if   
+   
    put false into sStopRespondingToTouchMoves
-   put empty into sCurrentAnimation
-   put "all_sets" into sAllSets
+   set the cCurrentAnimation of this card to empty
+   set the cScreenBeingTouched of this card to empty
+   set the cLocOnTouchStartX of this card to item 1 of the loc of group "all_sets" // Store x of group starting position loc
+   clearBtnProperties
+   
+   showContent
    
 end openCard
 
+## Displays the sets and levels
+
+on showContent
+   
+   set the cCurrentAnimation of this card to "showcontent" 
+   put item 1 of the loc of group "all_sets" into tPos // Get position of sets
+   set the left of group "all_sets" to item 1 of the loc of this card // Put just offscreen to the right
+   
+   aeLockMoves
+   aeFadeIn the long id of image "choose_a_level", 200 // Fade in title
+   aeFadeIn the long id of btn "stop", 200 // Fade in stop button
+   aeFadeIn the long id of group "all_sets", 300 // Fade in
+   aeMoveTo the long id of group "all_sets", tPos, item 2 of the loc of this card, 800, "overshoot" // Slide in   
+   aeUnlockMoves
+   
+end showContent
+
+## Clears custom properties used to keep track of whether the user clicks a level field
+
+on clearBtnProperties
+   
+   set the cLevelButtonTouched of this card to empty // Stores which button is tapped (empty of no button is tapped)
+   set the cLevelButtonTouchedUnlocked of this card to empty // This will store whether the button is disabled
+   
+end clearBtnProperties
+
 on goToSet pSet
    
-   put "shuntSets" into sCurrentAnimation
+   set the cCurrentAnimation of this card to "shuntSets"
    put true into sStopRespondingToTouchMoves // Stop the touchmove handler from responding to further touches
    put "set" & pSet into tNewSetName
    put the cNumberOfSets of the current stack + 1 into tLimit   
@@ -22,16 +58,14 @@ on goToSet pSet
       
       put tNewSetCurrentLocX - tCardLocX into tDistanceToMove // Work out how much we need to move to position the desired set centrally      
       put item 1 of the loc of group "all_sets" - tDistanceToMove into tNewXLoc // Get new x loc
+
+      set the cNewSet of this card to pSet // Store in custom property
       
-      put pSet into sNewSet // Store at script level
+      aeMoveTo the long id of group "all_sets", tNewXLoc, item 2 of the loc of group "all_sets", 400, "overshoot" // Move sets' parent group so that pSet group is centered
+
+   else // If we're not able to swipe to a earlier or later level      
       
-      aeMoveTo the long id of group sAllSets, tNewXLoc, item 2 of the loc of group sAllSets, 400, "overshoot" // Move sets' parent group so that pSet group is centered
-      
-      //put pSet into sCurrentSet // Update current set
-      
-   else // If we're not able to swipe to a earlier or later level
-      
-      aeMoveTo the long id of group sAllSets, xLocOnTouchStart, item 2 of the loc of group sAllSets, 400, "overshoot" // Move to last set settled on
+      aeMoveTo the long id of group "all_sets", the cLocOnTouchStartX of this card, item 2 of the loc of group "all_sets", 400, "overshoot" // Move to last set settled on
       
    end if
    
@@ -39,54 +73,88 @@ end goToSet
 
 on touchStart
    
-   put empty into sNewSet
-   put item 1 of mouseLoc() into xStart // Get x of finger position   
-   put item 1 of the loc of group sAllSets into xLocOnTouchStart // Get x of group starting position loc
-   put the cCurrentSet of the current stack into sCurrentSet
+   if the cCurrentAnimation of this card is empty then
+      
+      clearBtnProperties
+      set the cNewSet of this card to empty // Populate when we've swiped to a new set
+      set the cStartX of this card to item 1 of mouseLoc() // Get x of finger position
+      
+   end if
    
 end touchStart
 
 on touchmove
    
-   if not sStopRespondingToTouchMoves and sCurrentAnimation is empty then // If we're to respond to touch moves and a shunt animation is not currently taking place
+   if not sStopRespondingToTouchMoves and the cCurrentAnimation of this card is empty then // If we're to respond to touch moves and a shunt animation is not currently taking place
       
       put item 1 of mouseLoc() into xDiffOffset // Get the new x of finger position      
-      put xDiffOffset - xStart into tDistanceMoved // Get the distance moved      
-      set the loc of group sAllSets to xLocOnTouchStart + tDistanceMoved, item 2 of the loc of group sAllSets // Move the group of sets      
-      put "set" & sCurrentSet into tSet // Set name
+      put xDiffOffset - the cStartX of this card into tDistanceMoved // Get the distance moved
       
-      if item 1 of the loc of group tSet < 0 then
+      if abs(tDistanceMoved) > 0 then // If we've actually moved our finger
          
-         goToSet sCurrentSet + 1 // Go to next set
+         clearBtnProperties // Use can no longer go to a level in this finger touch
          
-      else if item 1 of the loc of group tSet > the width of this card then
+         set the loc of group "all_sets" to the cLocOnTouchStartX of this card + tDistanceMoved, item 2 of the loc of group "all_sets" // Move the group of sets      
+         put the width of this card / 4 into tShuntAfterDistance // Set should shunt when the user drags a distance of one third of the screen width
          
-         goToSet sCurrentSet - 1 // Go to prev set
+         if tDistanceMoved < -tShuntAfterDistance then
+            
+            goToSet the cCurrentSet of the current stack + 1 // Go to next set
+            
+         else if tDistanceMoved > tShuntAfterDistance then
+            
+            goToSet the cCurrentSet of the current stack - 1 // Go to prev set
+            
+         end if
          
-      end if         
-       
+      end if
+      
+   else if the cCurrentAnimation of this card is not empty then // If animating is happening
+      
+      set the cStartX of this card to item 1 of mouseLoc() // Track finger position so swipe can being post-animation from the correct starting point
+      
    end if
    
 end touchmove
 
+## When user lifts fingger
+
 on touchEnd
    
-   put false into sStopRespondingToTouchMoves // We want to let our touchMove function respond to movement
+   if the cCurrentAnimation of this card is empty and the cLevelButtonTouched of this card is empty then // If user has swiped
+      
+      goToSet the cCurrentSet of the current stack // Go to current set
+      
+   else if the cCurrentAnimation of this card is empty and the cLevelButtonTouched of this card is not empty and the cLevelButtonTouchedUnlocked of this card is true then
+      
+      set the cCurrentLevel of this stack to the cLevelButtonTouched of this card // Amend current level to the one stored in the tapped button
 
+      launchLevel // Run the stack-level handler to start the level
+      
+   end if
+   
+   put false into sStopRespondingToTouchMoves // We want to let our touchMove function respond to user swipes (providing there is not animation taking place)
+   
 end touchEnd
 
 ## Called by AE when an animation has completed
 
 on aeMoveDone
    
-   if sCurrentAnimation is "shuntSets" then // If the sets have been shunted
+   if the cCurrentAnimation of this card is "shuntSets" then // If the sets have been shunted
       
-      put empty into sCurrentAnimation
-      if sNewSet is not empty then
+      set the cCurrentAnimation of this card to empty
+      set the cLocOnTouchStartX of this card to item 1 of the loc of group "all_sets" // Update x of group starting position loc
+      
+      if the cNewSet of this card is not empty then
          
-         set the cCurrentSet of the current stack to sNewSet // Update current set number
+         set the cCurrentSet of the current stack to the cNewSet of this card // Update current set number
          
       end if
+      
+   else if the cCurrentAnimation of this card is "showcontent" then // If the opening animation has just completed
+      
+      set the cCurrentAnimation of this card to empty
       
    end if
    

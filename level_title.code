@@ -1,0 +1,19 @@
+on openCard
+
+   if the environment is "mobile" then
+      
+      set the loc of btn "bg" to the loc of this cd
+      set the loc of fld "level_number" to the loc of this cd
+      
+   end if
+   
+   put the cCurrentLevel of this stack into fld "level_number"
+   send "autoStart" to me in 2000 millisecs // Auto start after a short wait
+   
+end openCard
+
+on autoStart
+   
+   launchLevel // Run the stack-level handler to start the level
+   
+end autoStart

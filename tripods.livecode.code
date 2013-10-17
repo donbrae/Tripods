@@ -69,7 +69,7 @@ on openStack
       start using stack "animationEngine"
    end if
    
-   aeSetFrameRate 50 // Set the Animation Engine frame rate
+   aeSetFrameRate 60 // Set the Animation Engine frame rate
    
    if there is a file "moves.txt" then
       put URL ("file:moves.txt") into tTotalMoves // Get total moves used from file
@@ -128,7 +128,7 @@ on launchLevel
    
    setupLevel
    startGame
-   
+
 end launchLevel
 
 ## Copies controls from relevant level template to the actual level card
@@ -201,14 +201,18 @@ end positionLevelElements
 on setupLevel
    
    put the width of btn "grid" into tGridWidth // Get width of grid
+   put 500 into sJumpAnimateSpeed // Speed in ms jump
+   put 340 into sPivotAnimateSpeed // Speed in ms pivot
    
    // Get width of each circular 'cell'
    if tGridWidth is 608 then // 8x8 grid
-      put the width of btn "grid" / 8 into sCellWidth
+      put the width of btn "grid" / 8 into sCellWidth      
    else if tGridWidth is 600 then // 6x6 grid
       put the width of btn "grid" / 6 into sCellWidth
+      put sJumpAnimateSpeed / 8 * 9 into sJumpAnimateSpeed // Slightly slower speed in ms jump
+      put sPivotAnimateSpeed / 8 * 9 into sPivotAsPivotAnimateSpeednimateSpeed // Slightly slower speed in ms pivot
    end if
-      
+   
    put sCellWidth / 2 + the left of btn "grid" into tX // Work out starting point on X axis
    put sCellWidth / 2 + the top of btn "grid" into tY // And the Y
    
@@ -293,8 +297,6 @@ on setupLevel
    ## Set various level values
    
    put false into sChangeInFootPos
-   put 500 into sJumpAnimateSpeed // Speed in ms jump
-   put 340 into sPivotAnimateSpeed // Speed in ms jump
    put 0 into sMovesCounter // Reset move counter
    put false into sCollision // Set collision flag to false
    //put empty into sFootLandingLocs // Empty target foot location array
@@ -442,7 +444,6 @@ on animateBackground
    put "bg" into tBackground
    put "level" into tCard
    
-   //send "aeMoveTo the long id of btn tBackground, the width of this card, item 2 of this loc of this card, 7000" to me in 1 millisec // To left 
    send "aeMoveTo the long id of btn tBackground of the card tCard, 0, item 2 of the loc of this card, 20000" to me in 1 millisecs // To right
    send "aeMoveTo the long id of btn tBackground of the card tCard, the width of this card, item 2 of the loc of this card, 20000" to me in 20100 millisecs // To left
    
@@ -1376,6 +1377,13 @@ on configLevelSelectionCard pSetNumber
    end repeat
    
    positionSets tCardName, tCardWidth, tBtnDiameter // Position the newly created groups of sets
+   set the visible of group "all_sets" of cd tCardName to false // Hide group of sets
+   put the height of this card / 10 into tTopPos
+   put the height of this card - round(tTopPos / 2) into tBottomPos
+   set the loc of image "choose_a_level" of cd tCardName to item 1 of the loc of this card, tTopPos // Position card title
+   set the loc of btn "stop" of cd tCardName to item 1 of the loc of this card, tBottomPos // Position stop button
+   set the visible of image "choose_a_level" of cd tCardName to false // Hide card title
+   set the visible of btn "stop" of cd tCardName to false // Hide stop button
    
 end configLevelSelectionCard
 
