@@ -22,13 +22,11 @@ on preOpenCard
    
    if tNextLevelName is among the lines of the customPropertySets of the current stack then // If the next level in the current set exists
       
-      set the LevelLocking[tNextLevelName] of the current stack to true // Unlock next level
       set the cNext of me to "level" // Set custom property on this card
       set the visible of btn "next_level" to true // Show "next level" button
       
    else if tNextSetLevel1Name is among the lines of the customPropertySets of the current stack then // If we've completed this set and there is another set to come
-      
-      set the LevelLocking[tNextSetLevel1Name] of the current stack to true // Unlock the first level of the next set
+
       set the cNext of me to "set"
       set the visible of btn "next_level" to true
         
@@ -47,11 +45,11 @@ on preOpenCard
    put empty into fld "points"
    put empty into fld "total_points"
    
-   calculatePoints tLevel
+   calculatePoints tLevel, tCurrentSet
    
 end preOpenCard
 
-## When the Home of Next buttons of the win screen are tapped, we need to update the custom properties which track where the player is in the game
+## When the Home of Next buttons of the win screen are tapped, we need to update the custom properties which track where the player is in the game. See also cFartherstPoint
 on updateProgressData
    
    put the cNext of me into tNext
@@ -70,10 +68,10 @@ on updateProgressData
 end updateProgressData
 
 ## Calculate level and total points
-on calculatePoints pLevel
+on calculatePoints pLevel, pCurrentSet
    
    put the cTotalPoints of this stack into tTotalPoints // Get game total points
-   put "level" & pLevel into tLevelName // Get level name
+   put "set" & pCurrentSet & "_level" & pLevel into tLevelName // Get level name
    put the customProperties[tLevelName] of this stack into tLevelProperties // Get level's custom properties
    put tLevelProperties[cPoints] into tLevelPoints // Get the number of point on offer for this level   
    put the cLevelMoves of this card into tLevelMoves // The number of moves the player took to win the level

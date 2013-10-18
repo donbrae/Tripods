@@ -71,30 +71,94 @@ on openStack
    
    aeSetFrameRate 60 // Set the Animation Engine frame rate
    
-   if there is a file "moves.txt" then
-      put URL ("file:moves.txt") into tTotalMoves // Get total moves used from file
-      set the cTotalMovesRemaining of the current stack to tTotalMoves // Update stack custom property
-   else
-      set the cTotalMovesRemaining of the current stack to 10000 // If no file, then put to 10000
-   end if
+   restoreGame
    
-   put the cTotalMovesRemaining of the current stack into fld "moves_remaining" of cd "settings"
+   //if there is a file "moves.txt" then
+      //put URL ("file:moves.txt") into tTotalMoves // Get total moves used from file
+      //set the cTotalMovesRemaining of the current stack to tTotalMoves // Update stack custom property
+   //else
+      //set the cTotalMovesRemaining of the current stack to 10000 // If no file, then put to 10000
+   //end if
    
-   retrieveHighScores   
+   //put the cTotalMovesRemaining of the current stack into fld "moves_remaining" of cd "settings"
+   
+   //retrieveHighScores   
    
 end openStack
 
+## Restores game's state on open
+
+on restoreGame
+   
+   // Prefs   
+   If there is a file "prefs.txt" then
+      
+      put URL ("file:prefs.txt") into tPrefs // Get prefs from file
+      split tPrefs by return and ":" // Split into array   
+      set the customProperties["cPrefs"] of this stack to tPrefs // Set the tPrefs custom property to value of array
+      
+      // Amend Settings card UI
+      
+   end if
+   
+   // State
+   If there is a file "state.txt" then
+      
+      put URL ("file:state.txt") into tState // Get state-related custom properties from file
+      split tState by return and ":" // Split into array
+      
+      // Cycle through array and apply each line as a stack custom property
+      repeat for each line tKey in the keys of tState         
+         set the tKey of the current stack to tState[tKey]
+      end repeat
+      
+   end if
+   
+end restoreGame
+
+## Controls process when app is closed
+
 on closeStack
    
-   put the cTotalMovesRemaining of the current stack into URL ("file:moves.txt") // Store number of moves remaining   
+   saveState
+   savePrefs
    saveHighScores
    
 end closeStack
 
+## Saves game's state when app is closed
+
+on saveState
+   
+   put "cCurrentLevel:" & the cCurrentLevel of this stack & return after tStateArray // Current level
+   put "cCurrentSet:" & the cCurrentSet of this stack & return after tStateArray // Current set
+   put "cTotalPoints:" & the cTotalPoints of this stack & return after tStateArray // Total points
+   put "cFarthestPoint:" & the cFarthestPoint of this stack after tStateArray // Progress
+   
+   put tStateArray into URL ("file:state.txt") // Save to file
+   
+end saveState
+
+## Saves game's preferences when app is closed
+
+on savePrefs
+   
+   put the customProperties["cPrefs"] of the current stack into tPrefs // Get preferences custom property as an array
+   
+   // Cycle through the array and format for saving to file
+   repeat for each line tKey in the keys of tPrefs
+      put tKey & ":" & tPrefs[tKey] & return after tArrayContents
+   end repeat
+   
+   put tArrayContents into URL ("file:prefs.txt") // Save to file
+   
+end savePrefs
+
+## Saves game's high scores when app is closed
+
 on saveHighScores
    
-   // Get high scores custom property as an array
-   put the customProperties["cHighScores"] of the current stack into tHighScores
+   put the customProperties["cHighScores"] of the current stack into tHighScores // Get high scores custom property as an array
    
    // Cycle through the array and format for saving to file
    repeat for each line tKey in the keys of tHighScores
@@ -106,6 +170,7 @@ on saveHighScores
 end saveHighScores
 
 ## Read high scores from file
+
 on retrieveHighScores
    
    if there is a file "highscores.txt" then      
@@ -1231,11 +1296,40 @@ on levelWin
    set the cStarRating of cd "level_win" to calculateStarRating() // Get and set star rating
    set the cLevelMoves of cd "level_win" to sMovesCounter // Store moves counter in win card custom property
    
-   put "set" & the cCurrentSet of the current stack & "_level" & the cCurrentLevel of the current stack + 1 into tNextLevel // Get next level name
+   updateProgress tCurrentSet
    
-   set the LevelLocking[tNextLevel] of the current stack to true // Unlock next level
-      
 end levelWin
+
+## Update cFarthestPoint property to track the farthest point reached in the game
+on updateProgress pCurrentSet
+   
+   put item 1 of the cFarthestPoint of this stack into tFarthestSet // Farthest set reach
+   put item 2 of the cFarthestPoint of this stack into tFarthestLevel // Fartherst level in the farthest set
+   put tFarthestSet into tFarthestArray[1] // Add to array
+   put tFarthestLevel into tFarthestArray[2]
+   put false into tHigherPointReached // Flag false by default
+   
+   if pCurrentSet is tFarthestSet and the cCurrentLevel of this stack > tFarthestLevel then // If we're progressing normally and we've just completed the next level in the set
+      
+      put the cCurrentLevel of this stack into tFarthestArray[2] // Update the farthest level of this set
+      put true into tHigherPointReached
+      
+   else if pCurrentSet > tFarthestSet then // If we've just completed level 1 of a new set
+      
+      put pCurrentSet into tFarthestArray[1] // Update to the new set number
+      put 1 into tFarthestArray[2]  // Update to level 1
+      put true into tHigherPointReached
+      
+   end if
+   
+   if tHigherPointReached then // If we've reached a new further point in game, update the custom property to reflect this
+      
+      combine tFarthestArray using comma // Convert array so it can be viewing in the IDE as a custom property
+      set the cFarthestPoint of this stack to tFarthestArray
+      
+   end if   
+   
+end updateProgress
 
 ## Calculates the level's star rating based on the level set's cStarRating custom property
 
@@ -1271,6 +1365,8 @@ function isAnimating
    end if
    
 end isAnimating
+
+## Creates a pseudocard for each set of levels in the game
 
 on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCustomPropertySets
    
@@ -1326,18 +1422,25 @@ on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCusto
    
    repeat with x = 1 to tLevelsArrayLength
       
+      put true into tLocked // Set flag to true as default
       put "level_number" & x into tLevelField // Get name of field x
       set the cLevel of fld tLevelField of group tSetName of cd pCardName to x // Set the cLevel property to the corresponding level number. This will be used to go to the correct card when the button is tapped
       
-      put "set" & pSetNumber & "_level" & x into tLevelName
+      if pSetNumber < item 1 of the cFarthestPoint of the current stack then // If this is a set already fully completed
+         put false into tLocked
+      else if pSetNumber is item 1 of the cFarthestPoint of the current stack and x < item 2 of the cFarthestPoint of the current stack + 2 then // If this is the set to which player has progressed and the level of this set has been completed
+         put false into tLocked
+      else if pSetNumber is 1 and x is 1 then // Set 1, Level 1 is always unlocked
+         put false into tLocked
+      end if
       
-      if the LevelLocking[tLevelName] of the current stack is false then // If this level is locked
+      if tLocked then // If this level is locked
          put "btn_bg" & x into tGraphicName
          set the opaque of graphic tGraphicName of group tSetName of cd pCardName to true // Set the opaque of the background graphic to full
          set the blendLevel of graphic tGraphicName of group tSetName of cd pCardName to 61 // Fade button bg
          set the blendLevel of fld tLevelField of group tSetName of cd pCardName to 28 // Fade button value
          set the cUnlocked of fld tLevelField of group tSetName of cd pCardName to false // Mark that this field is locked
-      else
+      else // If the level is unlocked
          set the cUnlocked of fld tLevelField of group tSetName of cd pCardName to true // Mark that this field is unlocked
       end if
       
