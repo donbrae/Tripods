@@ -64,7 +64,6 @@ on openStack
 end openStack
 
 ## Restores game's state on open
-
 on restoreGame
    
    // Prefs   
@@ -91,10 +90,18 @@ on restoreGame
       
    end if
    
+   // High scores
+   if there is a file "highscores.txt" then    
+        
+      put URL ("file:highscores.txt") into tHighScores // Get text file   
+      split tHighScores by return and ":" // Split into array   
+      set the customProperties["cHighScores"] of this stack to tHighScores // Set the array to value of cHighScores custom property
+   
+   end if 
+   
 end restoreGame
 
 ## Controls process when app is closed
-
 on closeStack
    
    saveState
@@ -104,7 +111,6 @@ on closeStack
 end closeStack
 
 ## Saves game's state when app is closed
-
 on saveState
    
    put "cCurrentLevel:" & the cCurrentLevel of this stack & return after tStateArray // Current level
@@ -117,7 +123,6 @@ on saveState
 end saveState
 
 ## Saves game's preferences when app is closed
-
 on savePrefs
    
    put the customProperties["cPrefs"] of the current stack into tPrefs // Get preferences custom property as an array
@@ -132,7 +137,6 @@ on savePrefs
 end savePrefs
 
 ## Saves game's high scores when app is closed
-
 on saveHighScores
    
    put the customProperties["cHighScores"] of the current stack into tHighScores // Get high scores custom property as an array
@@ -146,20 +150,7 @@ on saveHighScores
    
 end saveHighScores
 
-## Read high scores from file
-
-on retrieveHighScores
-   
-   if there is a file "highscores.txt" then      
-      put URL ("file:highscores.txt") into tHighScores // Get text file   
-      split tHighScores by return and ":" // Split into array   
-      set the customProperties["cHighScores"] of this stack to tHighScores // Set the array to value of cHighScores custom property
-   end if   
-   
-end retrieveHighScores
-
 ## Level launch controller
-
 on launchLevel
       
    configureLevelCard
@@ -174,7 +165,6 @@ on launchLevel
 end launchLevel
 
 ## Copies controls from relevant level template to the actual level card
-
 on configureLevelCard
    
    put the cCurrentSet of this stack into tCurrentSet // Get current set   
@@ -448,15 +438,7 @@ on flashSprite
    put 200 into flashSpeed
    put the long ID of btn "pivot" into tPivot
    
-   if sLevelWon and the visible of btn "pivot" is true then // If we've won the game and the pivot is visible
-      
-      send "aefadeOut tPivot, flashSpeed" to me in 400 millisecs // Fade the pivot out
-      
-   else
-      
-      send "aefadeIn tPivot, flashSpeed" to me in 750 millisecs // Flash pivot
-      
-   end if
+   if not sLevelWon then send "aefadeIn tPivot, flashSpeed" to me in 750 millisecs // Fade in pivot
    
    // Flash feet   
    send "aeWrapper fadeIn, flashSpeed" to me in 450 millisecs
@@ -667,8 +649,6 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
    end if
    
    if not tBoundaryHit and not tJumpCollide then // If a boundary hasn't been hit, or the foot hasn't jumped onto a block
-      
-      send "showPivot 150" to me in sJumpAnimateSpeed millisecs
       
       put sMovesCounter + 1 into sMovesCounter // sMovesCounter++
       send "incrMoves" to this card in sJumpAnimateSpeed milliseconds // Increment moves counter
@@ -1230,10 +1210,11 @@ on checkWin
          end if
       end repeat
       
-      if tFoot1LandSuccess and tFoot2LandSuccess and tFoot3LandSuccess then // If all feet are in the right locations
-         levelWin // Run the level win routine
-      else
-         put false into sCheckingForWin // Flag that we're no longer checking for a win
+      if tFoot1LandSuccess and tFoot2LandSuccess and tFoot3LandSuccess then // If all feet are in the right locations         
+         levelWin // Run the level win routine         
+      else         
+         if sCurrentAnimation is "jump" then showPivot 150 // Show the pivot if we've just successfully jumped       
+         put false into sCheckingForWin // Flag that we're no longer checking for a win         
       end if
       
    end if
@@ -1247,6 +1228,13 @@ on levelWin
    flashSprite
    
    aeFadeOut the long id of btn "stop", 250 // Fade out stop button
+      
+   if sCurrentAnimation is "pivot" then
+      
+      put "pivot" into tPivot   
+      send "aeFadeOut the long id of btn tPivot, 100" to me in 250 millisecs // Fade out pivot if the winning move was a pivot, with a short delay to wait for pivot (just because it looks nicer)
+   
+   end if
    
    put "You've won the level!" into tWinMsg
    
