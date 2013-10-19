@@ -25,6 +25,26 @@ command setControlIcon pCtrlName, pCardName, pImageName, pSrcCard
 
 end setControlIcon
 
+## Make sure background animation pending messages are cleared
+command cancelPendingMessages
+   
+   repeat for each line aLine in the pendingMessages
+      if aLine contains "animateBackground" or aLine contains "aeGeneral" or aLine contains "aeMoveTo" or aLine contains "goAnimate" or aLine contains "fade" then
+         cancel item 1 of aLine // Item 1 is the message ID
+      end if
+   end repeat
+   
+end cancelPendingMessages
+
+## Cancel all pending message (including any that the engine may generate)
+command cancelAllPendingMessages
+   
+   repeat for each line aLine in the pendingMessages
+      cancel item 1 of aLine
+   end repeat
+   
+end cancelAllPendingMessages
+
 ## Go through all controls in a card and delete them
 command deleteControlsFromCard pCardName
    

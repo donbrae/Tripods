@@ -14,6 +14,7 @@ local sFootLanding3Locs
 
 local sLevelProperties
 local sGameRunning
+local sLevelWon
 
 local sCheckingForWin
 
@@ -23,7 +24,7 @@ global gTouchStartLoc
 global gScale
 global gTouchedFoot
 
-local sLastLevelCompleted
+local sLastSetFullyCompleted // Updated when cycling through sets so we know which the last fully complete set is
 
 local sTime
 
@@ -31,18 +32,6 @@ local sJumpAnimateSpeed
 local sPivotAnimateSpeed
 local sCurrentAnimation // Pivot or jump
 local sCollision
-
-## Make sure background animation pending messages are cleared
-
-on cancelPendingMessages   
-   
-   repeat for each line aLine in the pendingMessages
-      if aLine contains "animateBackground" or aLine contains "aeGeneral" or aLine contains "aeMoveTo" then // Item 1 is the message ID
-         cancel item 1 of aLine
-      end if
-   end repeat
-   
-end cancelPendingMessages
 
 on preOpenStack
    
@@ -69,20 +58,8 @@ on openStack
       start using stack "animationEngine"
    end if
    
-   aeSetFrameRate 60 // Set the Animation Engine frame rate
-   
+   aeSetFrameRate 60 // Set the Animation Engine frame rate   
    restoreGame
-   
-   //if there is a file "moves.txt" then
-      //put URL ("file:moves.txt") into tTotalMoves // Get total moves used from file
-      //set the cTotalMovesRemaining of the current stack to tTotalMoves // Update stack custom property
-   //else
-      //set the cTotalMovesRemaining of the current stack to 10000 // If no file, then put to 10000
-   //end if
-   
-   //put the cTotalMovesRemaining of the current stack into fld "moves_remaining" of cd "settings"
-   
-   //retrieveHighScores   
    
 end openStack
 
@@ -95,7 +72,7 @@ on restoreGame
       
       put URL ("file:prefs.txt") into tPrefs // Get prefs from file
       split tPrefs by return and ":" // Split into array   
-      set the customProperties["cPrefs"] of this stack to tPrefs // Set the tPrefs custom property to value of array
+      //set the customProperties["cPrefs"] of this stack to tPrefs // Set the tPrefs custom property to value of array
       
       // Amend Settings card UI
       
@@ -367,6 +344,7 @@ on setupLevel
    //put empty into sFootLandingLocs // Empty target foot location array
    set the label of button "moves_value" to sMovesCounter // Amend moves counter
    put false into sCheckingForWin // Prevents further moves while code checks to see whether use has positioned feet at the target locations
+   put false into sLevelWon
    put empty into sCurrentAnimation
    put empty into sTouchStartLoc
    put empty into gTouchStartLoc
@@ -436,9 +414,11 @@ end setupLevel
 // Hide the sprite
 
 on hideSprite
+   
    set the vis of button "foot1" to false
    set the vis of button "foot2" to false
    set the vis of button "foot3" to false
+   
 end hideSprite
 
 // Flash the sprite
@@ -466,10 +446,17 @@ end aeWrapper
 on flashSprite
    
    put 200 into flashSpeed
-   
-   // Flash pivot
    put the long ID of btn "pivot" into tPivot
-   send "aefadeIn tPivot, flashSpeed" to me in 750 millisecs
+   
+   if sLevelWon and the visible of btn "pivot" is true then // If we've won the game and the pivot is visible
+      
+      send "aefadeOut tPivot, flashSpeed" to me in 400 millisecs // Fade the pivot out
+      
+   else
+      
+      send "aefadeIn tPivot, flashSpeed" to me in 750 millisecs // Flash pivot
+      
+   end if
    
    // Flash feet   
    send "aeWrapper fadeIn, flashSpeed" to me in 450 millisecs
@@ -484,13 +471,7 @@ on test
    
 end test
 
-on clearLevel
-   
-   aeStopMoving the long ID of btn "bg" of the cd "level" // Stop background moving
-   
-   // Reset variables and custom properties
-   put "null" into sCurrentAnimation
-   set the pJumpTriggered of the cd "level" to false
+on clearLevel   
    
    // Delete level objects from card
    put the number of buttons of this card into tCount
@@ -499,8 +480,6 @@ on clearLevel
              delete button x of this card
         end if
    end repeat
-   
-   cancelPendingMessages // Cancel any pending messages (e.g. background image move)
    
 end clearLevel   
    
@@ -522,13 +501,10 @@ end animateBackground
    
 on startGame
    
+   repositionPivot "launch"
    flashSprite
-   repositionPivot
-   
-   put true into sGameRunning
-   
+   put true into sGameRunning   
    put the loc of this card into tCardLoc
-   
    set the loc of btn "bg" to the width of this card, item 2 of this loc of this card // Background button to left
    animateBackground
    
@@ -536,7 +512,10 @@ end startGame
 
 on stopGame
    
-   put false into sGameRunning
+   aeStopMoving the long ID of btn "bg" of the cd "level" // Stop background moving
+   put false into sGameRunning // Amend script-level flag
+   set the pJumpTriggered of the cd "level" to false // Reset jump custom property
+   cancelPendingMessages // Cancel any pending messages
    
 end stopGame
 
@@ -561,12 +540,14 @@ end goTimer
 
 on incrMoves
    
-   set the label of button "moves_value" to sMovesCounter // Amend moves counter
+   if sGameRunning then
+            
+      set the label of button "moves_value" to sMovesCounter // Amend moves counter
+      set the cTotalMovesRemaining of the current stack to the cTotalMovesRemaining of the current stack - 1 // Total moves--
+      put the cTotalMovesRemaining of the current stack into fld "moves_remaining" of cd "settings" // Amend total moves counter
+      
+   end if
    
-   set the cTotalMovesRemaining of the current stack to the cTotalMovesRemaining of the current stack - 1 // Total moves--
-
-   put the cTotalMovesRemaining of the current stack into fld "moves_remaining" of cd "settings" // Amend total moves counter
-    
 end incrMoves
 
 on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
@@ -710,8 +691,12 @@ end goJump
 
 on hidePivot pSpeed
    
-   put the long ID of btn "pivot" into tPivot      
-   aeFadeOut tPivot, pSpeed
+   if sGameRunning then
+      
+      put the long ID of btn "pivot" into tPivot      
+      aeFadeOut tPivot, pSpeed
+      
+   end if
    
 end hidePivot
 
@@ -719,9 +704,13 @@ end hidePivot
 
 on showPivot pSpeed
    
-   put the long ID of btn "pivot" into tPivot   
-   set the layer of tPivot to top
-   aePivotFadeIn tPivot, pSpeed
+   if sGameRunning and not sLevelWon then
+      
+      put the long ID of btn "pivot" into tPivot   
+      set the layer of tPivot to top
+      aePivotFadeIn tPivot, pSpeed
+      
+   end if   
    
 end showPivot
 
@@ -749,130 +738,134 @@ on animateFoot pFootShortName, pFrameRateFactor
    
 end animateFoot
 
-on repositionPivot
+on repositionPivot pEvent
    
-   // Get angles of foot one to other two feet
-   put the loc of btn "foot1" into tFoot1
-   put the loc of btn "foot2" into tFoot2
-   put the loc of btn "foot3" into tFoot3
-   
-   put getAngleBetweenPoints(tFoot1, tFoot2) into tAngle12
-   put getAngleBetweenPoints(tFoot1, tFoot3) into tAngle13
-   
-   put round(sCellWidth / 6) into tPivotShift // The pivot will be moved by slightly more than the cell width
-   
-   ## For clockwise arrangement 1, 2, 3
-   
-   if tAngle12 is 63 and tAngle13 is 117 then // Position 1
-      put item 1 of tFoot1 into tPivotX
-      put item 2 of tFoot1 + sCellWidth + tPivotShift into tPivotY
+   if sGameRunning or pEvent is "launch" or sLevelWon then // If during gameplay, or as we're just starting the game, or we've just won a level
       
-   else if tAngle12 is 90 and tAngle13 is 153 then // Position 2
-      put item 2 of tFoot3 into tPivotY
-      put item 1 of tFoot3 + sCellWidth + tPivotShift into tPivotX
+      // Get angles of foot one to other two feet
+      put the loc of btn "foot1" into tFoot1
+      put the loc of btn "foot2" into tFoot2
+      put the loc of btn "foot3" into tFoot3
       
-   else if tAngle12 is 117 and tAngle13 is 180 then // Position 3
-      put item 1 of tFoot2 into tPivotX
-      put item 2 of tFoot2 - sCellWidth - tPivotShift into tPivotY
+      put getAngleBetweenPoints(tFoot1, tFoot2) into tAngle12
+      put getAngleBetweenPoints(tFoot1, tFoot3) into tAngle13
       
-   else if tAngle12 is 153 and tAngle13 is -153 then // Position 4
-      put item 2 of tFoot1 into tPivotY
-      put item 1 of tFoot1 - sCellWidth - tPivotShift into tPivotX
+      put round(sCellWidth / 6) into tPivotShift // The pivot will be moved by slightly more than the cell width
       
-   else if tAngle12 is 180 and tAngle13 is -117 then // Position 5
-      put item 1 of tFoot3 into tPivotX
-      put item 2 of tFoot3 + sCellWidth + tPivotShift into tPivotY
+      ## For clockwise arrangement 1, 2, 3
       
-   else if tAngle12 is -153 and tAngle13 is -90 then // Position 6
-      put item 2 of tFoot2 into tPivotY
-      put item 1 of tFoot2 + sCellWidth + tPivotShift into tPivotX
+      if tAngle12 is 63 and tAngle13 is 117 then // Position 1
+         put item 1 of tFoot1 into tPivotX
+         put item 2 of tFoot1 + sCellWidth + tPivotShift into tPivotY
+         
+      else if tAngle12 is 90 and tAngle13 is 153 then // Position 2
+         put item 2 of tFoot3 into tPivotY
+         put item 1 of tFoot3 + sCellWidth + tPivotShift into tPivotX
+         
+      else if tAngle12 is 117 and tAngle13 is 180 then // Position 3
+         put item 1 of tFoot2 into tPivotX
+         put item 2 of tFoot2 - sCellWidth - tPivotShift into tPivotY
+         
+      else if tAngle12 is 153 and tAngle13 is -153 then // Position 4
+         put item 2 of tFoot1 into tPivotY
+         put item 1 of tFoot1 - sCellWidth - tPivotShift into tPivotX
+         
+      else if tAngle12 is 180 and tAngle13 is -117 then // Position 5
+         put item 1 of tFoot3 into tPivotX
+         put item 2 of tFoot3 + sCellWidth + tPivotShift into tPivotY
+         
+      else if tAngle12 is -153 and tAngle13 is -90 then // Position 6
+         put item 2 of tFoot2 into tPivotY
+         put item 1 of tFoot2 + sCellWidth + tPivotShift into tPivotX
+         
+      else if tAngle12 is -117 and tAngle13 is -63 then // Position 7
+         put item 1 of tFoot1 into tPivotX
+         put item 2 of tFoot1 - sCellWidth - tPivotShift into tPivotY
+         
+      else if tAngle12 is -90 and tAngle13 is -27 then // Position 8
+         put item 2 of tFoot3 into tPivotY
+         put item 1 of tFoot3 - sCellWidth - tPivotShift into tPivotX
+         
+      else if tAngle12 is -63 and tAngle13 is 0 then // Position 9
+         put item 1 of tFoot2 into tPivotX
+         put item 2 of tFoot2 + sCellWidth + tPivotShift into tPivotY
+         
+      else if tAngle12 is -27 and tAngle13 is 27 then // Position 10
+         put item 2 of tFoot1 into tPivotY
+         put item 1 of tFoot1 + sCellWidth + tPivotShift into tPivotX
+         
+      else if tAngle12 is 0 and tAngle13 is 63 then // Position 11
+         put item 1 of tFoot3 into tPivotX
+         put item 2 of tFoot3 - sCellWidth - tPivotShift into tPivotY
+         
+      else if tAngle12 is 27 and tAngle13 is 90 then // Position 12
+         put item 2 of tFoot2 into tPivotY
+         put item 1 of tFoot2 - sCellWidth - tPivotShift into tPivotX
+         
+      else if tAngle13 is 63 and tAngle12 is 117 then // Position 1 (clockwise 1, 3, 2)         
+         put item 1 of tFoot1 into tPivotX
+         put item 2 of tFoot1 + sCellWidth + tPivotShift into tPivotY
+         
+      else if tAngle13 is 90 and tAngle12 is 153 then // Position 2
+         put item 2 of tFoot2 into tPivotY
+         put item 1 of tFoot2 + sCellWidth + tPivotShift into tPivotX
+         
+      else if tAngle13 is 117 and tAngle12 is 180 then // Position 3
+         put item 1 of tFoot3 into tPivotX
+         put item 2 of tFoot3 - sCellWidth - tPivotShift into tPivotY
+         
+      else if tAngle13 is 153 and tAngle12 is -153 then // Position 4
+         put item 2 of tFoot1 into tPivotY
+         put item 1 of tFoot1 - sCellWidth - tPivotShift into tPivotX
+         
+      else if tAngle13 is 180 and tAngle12 is -117 then // Position 5
+         put item 1 of tFoot2 into tPivotX
+         put item 2 of tFoot2 + sCellWidth + tPivotShift into tPivotY
+         
+      else if tAngle13 is -153 and tAngle12 is -90 then // Position 6
+         put item 2 of tFoot3 into tPivotY
+         put item 1 of tFoot3 + sCellWidth + tPivotShift into tPivotX
+         
+      else if tAngle13 is -117 and tAngle12 is -63 then // Position 7
+         put item 1 of tFoot1 into tPivotX
+         put item 2 of tFoot1 - sCellWidth - tPivotShift into tPivotY
+         
+      else if tAngle13 is -90 and tAngle12 is -27 then // Position 8
+         put item 2 of tFoot2 into tPivotY
+         put item 1 of tFoot2 - sCellWidth - tPivotShift into tPivotX
+         
+      else if tAngle13 is -63 and tAngle12 is 0 then // Position 9
+         put item 1 of tFoot3 into tPivotX
+         put item 2 of tFoot3 + sCellWidth + tPivotShift into tPivotY
+         
+      else if tAngle13 is -27 and tAngle12 is 27 then // Position 10
+         put item 2 of tFoot1 into tPivotY
+         put item 1 of tFoot1 + sCellWidth + tPivotShift into tPivotX
+         
+      else if tAngle13 is 0 and tAngle12 is 63 then // Position 11
+         put item 1 of tFoot2 into tPivotX
+         put item 2 of tFoot2 - sCellWidth - tPivotShift into tPivotY
+         
+      else if tAngle13 is 27 and tAngle12 is 90 then // Position 12
+         put item 2 of tFoot3 into tPivotY
+         put item 1 of tFoot3 - sCellWidth - tPivotShift into tPivotX
+      else
+         // Just a bit of defensive programming for the pivot to stay still if none of the above conditions is met (so tPivotX and tPivotY have a value) 
+         put item 1 of the loc of btn "pivot" into tPivotX
+         put item 2 of the loc of btn "pivot" into tPivotY
+      end if
       
-   else if tAngle12 is -117 and tAngle13 is -63 then // Position 7
-      put item 1 of tFoot1 into tPivotX
-      put item 2 of tFoot1 - sCellWidth - tPivotShift into tPivotY
+      put tPivotX,tPivotY into sPivotLoc
       
-   else if tAngle12 is -90 and tAngle13 is -27 then // Position 8
-      put item 2 of tFoot3 into tPivotY
-      put item 1 of tFoot3 - sCellWidth - tPivotShift into tPivotX
+      if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "pivot" then // If the pivot needs to change location after a pivot move
+         put the long ID of btn "pivot" into tPivot
+         send "aeMoveTo tPivot, item 1 of sPivotLoc, item 2 of sPivotLoc, 200" to me in 1 millisecs
+      else if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "jump" then // If the pivot needs to change location after a jump
+         set the loc of btn "pivot" to sPivotLoc // Set new loc right away
+      else if not sGameRunning then // On card load, before game is running
+         set the loc of btn "pivot" to sPivotLoc  
+      end if
       
-   else if tAngle12 is -63 and tAngle13 is 0 then // Position 9
-      put item 1 of tFoot2 into tPivotX
-      put item 2 of tFoot2 + sCellWidth + tPivotShift into tPivotY
-      
-   else if tAngle12 is -27 and tAngle13 is 27 then // Position 10
-      put item 2 of tFoot1 into tPivotY
-      put item 1 of tFoot1 + sCellWidth + tPivotShift into tPivotX
-      
-   else if tAngle12 is 0 and tAngle13 is 63 then // Position 11
-      put item 1 of tFoot3 into tPivotX
-      put item 2 of tFoot3 - sCellWidth - tPivotShift into tPivotY
-      
-   else if tAngle12 is 27 and tAngle13 is 90 then // Position 12
-      put item 2 of tFoot2 into tPivotY
-      put item 1 of tFoot2 - sCellWidth - tPivotShift into tPivotX
-      
-   else if tAngle13 is 63 and tAngle12 is 117 then // Position 1 (clockwise 1, 3, 2)         
-      put item 1 of tFoot1 into tPivotX
-      put item 2 of tFoot1 + sCellWidth + tPivotShift into tPivotY
-      
-   else if tAngle13 is 90 and tAngle12 is 153 then // Position 2
-      put item 2 of tFoot2 into tPivotY
-      put item 1 of tFoot2 + sCellWidth + tPivotShift into tPivotX
-      
-   else if tAngle13 is 117 and tAngle12 is 180 then // Position 3
-      put item 1 of tFoot3 into tPivotX
-      put item 2 of tFoot3 - sCellWidth - tPivotShift into tPivotY
-      
-   else if tAngle13 is 153 and tAngle12 is -153 then // Position 4
-      put item 2 of tFoot1 into tPivotY
-      put item 1 of tFoot1 - sCellWidth - tPivotShift into tPivotX
-      
-   else if tAngle13 is 180 and tAngle12 is -117 then // Position 5
-      put item 1 of tFoot2 into tPivotX
-      put item 2 of tFoot2 + sCellWidth + tPivotShift into tPivotY
-      
-   else if tAngle13 is -153 and tAngle12 is -90 then // Position 6
-      put item 2 of tFoot3 into tPivotY
-      put item 1 of tFoot3 + sCellWidth + tPivotShift into tPivotX
-      
-   else if tAngle13 is -117 and tAngle12 is -63 then // Position 7
-      put item 1 of tFoot1 into tPivotX
-      put item 2 of tFoot1 - sCellWidth - tPivotShift into tPivotY
-      
-   else if tAngle13 is -90 and tAngle12 is -27 then // Position 8
-      put item 2 of tFoot2 into tPivotY
-      put item 1 of tFoot2 - sCellWidth - tPivotShift into tPivotX
-      
-   else if tAngle13 is -63 and tAngle12 is 0 then // Position 9
-      put item 1 of tFoot3 into tPivotX
-      put item 2 of tFoot3 + sCellWidth + tPivotShift into tPivotY
-      
-   else if tAngle13 is -27 and tAngle12 is 27 then // Position 10
-      put item 2 of tFoot1 into tPivotY
-      put item 1 of tFoot1 + sCellWidth + tPivotShift into tPivotX
-      
-   else if tAngle13 is 0 and tAngle12 is 63 then // Position 11
-      put item 1 of tFoot2 into tPivotX
-      put item 2 of tFoot2 - sCellWidth - tPivotShift into tPivotY
-      
-   else if tAngle13 is 27 and tAngle12 is 90 then // Position 12
-      put item 2 of tFoot3 into tPivotY
-      put item 1 of tFoot3 - sCellWidth - tPivotShift into tPivotX
-   else
-      // Just a bit of defensive programming for the pivot to stay still if none of the above conditions is met (so tPivotX and tPivotY have a value) 
-      put item 1 of the loc of btn "pivot" into tPivotX
-      put item 2 of the loc of btn "pivot" into tPivotY
-   end if
-   
-   put tPivotX,tPivotY into sPivotLoc
-   
-   if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "pivot" then // If the pivot needs to change location after a pivot move
-      put the long ID of btn "pivot" into tPivot
-      send "aeMoveTo tPivot, item 1 of sPivotLoc, item 2 of sPivotLoc, 200" to me in 1 millisecs
-   else if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "jump" then // If the pivot needs to change location after a jump
-      set the loc of btn "pivot" to sPivotLoc // Set new loc right away
-   else if not sGameRunning then // On card load, before game is running
-      set the loc of btn "pivot" to sPivotLoc  
    end if
    
 end repositionPivot
@@ -1149,13 +1142,13 @@ on aeMoveDone
       
    else if sCurrentAnimation is "pivot" and sFootPivotCount is 2 then // If the pivot is complete
       
-      repositionPivot
       checkWin
+      repositionPivot
       
    else if sCurrentAnimation is "jump" then // If we've just completed a jump
       
-      repositionPivot      
       checkWin
+      repositionPivot
       
    end if
    
@@ -1249,8 +1242,11 @@ end checkWin
 
 on levelWin
    
-   stopGame   
-   flashSprite   
+   put true into sLevelWon
+   stopGame
+   flashSprite
+   
+   aeFadeOut the long id of btn "stop", 250 // Fade out stop button
    
    put "You've won the level!" into tWinMsg
    
@@ -1350,7 +1346,7 @@ end calculateStarRating
 
 on showWinCard
    
-   clearLevel // Remove onscreen game elements
+   stopGame
    go card "level_win" // Go to the success card
    
 end showWinCard
@@ -1428,7 +1424,9 @@ on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCusto
       
       if pSetNumber < item 1 of the cFarthestPoint of the current stack then // If this is a set already fully completed
          put false into tLocked
-      else if pSetNumber is item 1 of the cFarthestPoint of the current stack and x < item 2 of the cFarthestPoint of the current stack + 2 then // If this is the set to which player has progressed and the level of this set has been completed
+      else if pSetNumber is item 1 of the cFarthestPoint of the current stack and x < item 2 of the cFarthestPoint of the current stack + 2 then // If this is the set to which player has progressed, and is before the level at which the player is now entitled to start the game
+         put false into tLocked
+      else if pSetNumber is sLastSetFullyCompleted + 1 and pSetNumber is item 1 of the cFarthestPoint of the current stack + 1 and x is 1 then // If this is the first level in the "next" set,  it should be unlocked
          put false into tLocked
       else if pSetNumber is 1 and x is 1 then // Set 1, Level 1 is always unlocked
          put false into tLocked
@@ -1444,6 +1442,10 @@ on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCusto
          set the cUnlocked of fld tLevelField of group tSetName of cd pCardName to true // Mark that this field is unlocked
       end if
       
+      if not tLocked and x is tLevelsArrayLength and pSetNumber < the cCurrentSet of this stack  then // If this is the last level in the set and it's not locked and we've already got to a higher set
+         put pSetNumber into sLastSetFullyCompleted // Make this set the most recently fully completed one
+      end if
+      
    end repeat
    
 end createSet
@@ -1451,7 +1453,7 @@ end createSet
 ## Controls creation of set/level selection groups (panels allowing the user to select which level and set they'd like to play)
 
 on configLevelSelectionCard pSetNumber
-
+   
    // Setup
    put the cNumberOfSets of the current stack into tNumberOfSets // Get number of sets   
    put "level_select" into tCardName // Get level-selection card name   
@@ -1472,7 +1474,8 @@ on configLevelSelectionCard pSetNumber
    put (tDiv / 2) + tPadding into tY // And the Y
    
    put the customPropertySets of the current stack into tCustomPropertySets // Get stack custom property sets
- 
+   put 0 into sLastSetFullyCompleted // Reset tracker
+   
    repeat with i = 1 to tNumberOfSets
       
       createSet i, tCardName, tPadding, tBtnDiameter, tDiv, tX, tY, tCustomPropertySets // Go create the set of levels
