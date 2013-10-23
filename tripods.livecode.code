@@ -201,23 +201,24 @@ end configureLevelCard
 
 on positionLevelElements
    
-   set the loc of btn "grid" of the cd "level" to the loc of cd "level" // Center game grid
+   set the loc of btn "grid" of the cd "level" to the loc of this card // Center game grid
+   put the width of this card - the right of btn "grid" into tMargin
    
    // Position moves counter
-   set the left of fld "moves" of the cd "level" to 0
+   set the left of fld "moves" of the cd "level" to tMargin - 6 // -6 because text adds its own margins
    set the left of btn "moves_value" of the cd "level" to the right of fld "moves" of the cd "level"
-   set the top of fld "moves" of the cd "level" to 0
-   set the top of btn "moves_value" of the cd "level" to 0
+   set the top of fld "moves" of the cd "level" to tMargin - 12
+   set the top of btn "moves_value" of the cd "level" to tMargin - 12
    
    // Position "Previous Best" fields
-   set the right of btn "previous_best_value" of the cd "level" to the width of the cd "level"
-   set the right of fld "previous_best" of the cd "level" to the left of btn "previous_best_value" of the cd "level"   
-   set the top of fld "previous_best" of the cd "level" to 0
-   set the top of btn "previous_best_value" of the cd "level" to 0
+   set the left of fld "previous_best" of the cd "level" to tMargin - 6
+   set the left of btn "previous_best_value" of the cd "level" to the right of fld "previous_best" of the cd "level"   
+   set the top of fld "previous_best" to the bottom of btn "moves_value" of the cd "level" - 6
+   set the top of btn "previous_best_value" to the bottom of btn "moves_value" of the cd "level" - 6
    
-   // Position "Exit" button
-   set the bottom of the btn "stop" of the cd "level" to the height of the cd "level"
-   set the right of the btn "stop" of the cd "level" to the width of the cd "level"
+   // Position "Exit" button   
+   set the bottom of the btn "stop" of the cd "level" to the height of this cd - tMargin
+   set the right of the btn "stop" of the cd "level" to the width of this cd - tMargin
    
    if the environment is "mobile" then
       
@@ -388,6 +389,16 @@ on setupLevel
       
       put tLanding1Loc into sFootLanding1Locs[1]
       
+   else if tFoot1Icon is tFoot3Icon and tFoot1Icon is not tFoot2Icon then // If feet 1 and 3 are the same
+      
+      put tLanding1Loc into tArray[1]
+      put tLanding3Loc into tArray[2]
+      
+      put tArray into sFootLanding1Locs
+      put tArray into sFootLanding3Locs
+      
+      put tLanding2Loc into sFootLanding2Locs[1]
+      
    else // If all feet have different icons
       
       put tLanding1Loc into sFootLanding1Locs[1]
@@ -487,8 +498,8 @@ on startGame
    flashSprite
    put true into sGameRunning   
    put the loc of this card into tCardLoc
-   set the loc of btn "bg" to the width of this card, item 2 of this loc of this card // Background button to left
-   animateBackground
+   set the loc of btn "bg" to the loc of this card // Background image to centre
+   //animateBackground
    
 end startGame
 
@@ -568,7 +579,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
       put 14 into tJumpAnimTimer
    end if
    
-   send "hidePivot 100" to me in 1 millisecs // Fade out pivot   
+   //send "hidePivot 100" to me in 1 millisecs // Fade out pivot   
    animateFoot pFootShortName, tJumpAnimTimer // Start foot 'jump' animation
    
    if tJumpCollide and not tBoundaryHit then // If the foot will jump onto a block
@@ -581,7 +592,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
       
       send "animateFoot pFootShortName, 20" to me in sJumpAnimateSpeed + 400 millisecs // Start foot 'jump' animation
       send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, inOut" to btn pFootShortName in sJumpAnimateSpeed + 400 millisecs // Call jumpBack() after a short interval
-      send "showPivot 150" to me in sJumpAnimateSpeed + 700 millisecs // Fade pivot back in
+      //send "showPivot 150" to me in sJumpAnimateSpeed + 700 millisecs // Fade pivot back in
       
    else if tBoundaryHit then // If boundary will be hit
       
@@ -635,7 +646,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
       
       // Set timer for jump back to where the foot was
       send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, bounce" to me in (tJumpAnimateSpeed + 100) milliseconds // Jump back after short wait
-      send "showPivot 150" to me in (sJumpAnimateSpeed + 250) millisecs // Show the pivot
+      //send "showPivot 150" to me in (sJumpAnimateSpeed + 250) millisecs // Show the pivot
       
    end if
    
@@ -1213,7 +1224,7 @@ on checkWin
       if tFoot1LandSuccess and tFoot2LandSuccess and tFoot3LandSuccess then // If all feet are in the right locations         
          levelWin // Run the level win routine         
       else         
-         if sCurrentAnimation is "jump" then showPivot 150 // Show the pivot if we've just successfully jumped       
+         //if sCurrentAnimation is "jump" then showPivot 150 // Show the pivot if we've just successfully jumped       
          put false into sCheckingForWin // Flag that we're no longer checking for a win         
       end if
       
@@ -1475,7 +1486,11 @@ on configLevelSelectionCard pSetNumber
    put the height of this card / 10 into tTopPos
    put the height of this card - round(tTopPos / 2) into tBottomPos
    set the loc of image "choose_a_level" of cd tCardName to item 1 of the loc of this card, tTopPos // Position card title
-   set the loc of btn "stop" of cd tCardName to item 1 of the loc of this card, tBottomPos // Position stop button
+   
+   // Position stop button
+   set the left of btn "stop" of cd tCardName to item 1 of the loc of this card - (the width of btn "stop" of cd tCardName / 2)
+   set the bottom of btn "stop" of cd tCardName to the bottom of this card - (the height of btn "stop" of cd tCardName / 2)
+   
    set the visible of image "choose_a_level" of cd tCardName to false // Hide card title
    set the visible of btn "stop" of cd tCardName to false // Hide stop button
    
