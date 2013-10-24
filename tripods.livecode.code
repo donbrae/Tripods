@@ -173,11 +173,14 @@ on configureLevelCard
    put tLevelProperties into sLevelProperties // Make level properties available to whole script
    put tLevelProperties["cLevelTemplate"] into tTemplateName
    deleteControlsFromCard "level" // Delete any existing controls from the "level" card
- 
+   
    repeat with tControl = 1 to the number of controls in cd tLevelProperties["cLevelTemplate"] // Go through all controls in template card
-      copy control tControl of card tTemplateName to card "level" // Copy them over to the level
+      put the long name of control tControl of card tTemplateName into tControlName // Get control name     
+      if "group" is in tControlName and word 1 of tControlName is "group" or "group" is not in tControlName then // Don't want to clone children of groups twice 
+         copy control tControl of card tTemplateName to card "level" // Copy them over to the level
+      end if
    end repeat
-
+   
    ## Populate src element buttons with images relevant to this level
    
    put tLevelProperties["cFootImageGrps"] into tFootImageGrps // Get image groups used for each foot
@@ -217,8 +220,8 @@ on positionLevelElements
    set the top of btn "previous_best_value" to the bottom of btn "moves_value" of the cd "level" - 6
    
    // Position "Exit" button   
-   set the bottom of the btn "stop" of the cd "level" to the height of this cd - tMargin
-   set the right of the btn "stop" of the cd "level" to the width of this cd - tMargin
+   set the bottom of group "stop_btn" of the cd "level" to the height of this cd - tMargin
+   set the right of group "stop_btn" of the cd "level" to the width of this cd - tMargin
    
    if the environment is "mobile" then
       

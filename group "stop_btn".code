@@ -1,0 +1,22 @@
+on mouseDown
+   
+   put "mousedown" into msg box
+   set the blendLevel of graphic "bg_fill" of me to 50 // Show solid background
+   
+end mouseDown
+
+// Is fired only if mouse up happens over group
+on mouseUp
+   
+   stopGame
+   go card "game_title"
+   set the blendLevel of graphic "bg_fill" of me to 100 // Hide solid background
+   
+end mouseUp
+
+on mouseLeave
+   
+   put "mouseleave" into msg box
+   set the blendLevel of graphic "bg_fill" of me to 100 // Hide solid background
+   
+end mouseLeave

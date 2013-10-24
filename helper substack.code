@@ -77,6 +77,77 @@ command clearCustomPropertySet pSet
 
 end clearCustomPropertySet
 
+
+## Modification of aeFadeIn which lightly highlights button when touched
+on aeTouchButtonFadeIn pControl,pDuration
+   local tTarget
+   if there is no pControl then return "aeError: "&pControl&&"is not a valid control reference"
+   if pDuration is not a number then return "aeError: Duration is not a number"
+   set the blendlevel of pControl to 100
+   set the visible of pControl to true
+   replace quote with "§$aeQuote$§" in pControl
+   put the long id of the target into tTarget
+   replace quote with "§$aeQuote$§" in tTarget
+   _aeTouchButtonFadeIn pControl,pDuration,the millisecs,tTarget
+end aeTouchButtonFadeIn
+
+on _aeTouchButtonFadeIn pControl,pDuration,pStart,pTarget
+   local tControl,tTarget
+   put pControl into tControl
+   replace  "§$aeQuote$§" with quote in tControl
+   local tElapsed,tValue
+   put the millisecs - pStart into tElapsed
+   put round(aeEaseIn(1,50,pDuration,tElapsed,1)) into tValue
+   set the blendlevel of tControl to 100-tValue
+   if tElapsed<pDuration then
+      send "_aeTouchButtonFadeIn" && pControl,pDuration,pStart,pTarget to me in 25 millisecs
+   else
+      put pTarget into tTarget
+      replace  "§$aeQuote$§" with quote in tTarget
+      send "aeTouchButtonFadeInDone" to tTarget
+   end if
+end _aeTouchButtonFadeIn
+
+on aeTouchButtonFadeInDone
+   // trapped to avoid errors
+end aeTouchButtonFadeInDone
+
+## Modification of aeFadeOut which lightly highlights button when touched
+on aeTouchButtonFadeOut pControl,pDuration
+   local tTarget
+   if there is no pControl then return "aeError: "&pControl&&"is not a valid control reference"
+   if pDuration is not a number then return "aeError: Duration is not a number"
+   set the blendlevel of pControl to 0
+   set the visible of pControl to true
+   replace quote with "§$aeQuote$§" in pControl
+   put the long id of the target into tTarget
+   replace quote with "§$aeQuote$§" in tTarget
+   _aeTouchButtonFadeOut pControl,pDuration,the millisecs,tTarget
+end aeTouchButtonFadeOut
+
+on _aeTouchButtonFadeOut pControl,pDuration,pStart,pTarget
+   local tControl,tTarget
+   put pControl into tControl
+   replace  "§$aeQuote$§" with quote in tControl
+   local tElapsed,tValue
+   put the millisecs - pStart into tElapsed
+   put round(aeEaseIn(50,0,pDuration,tElapsed,1)) into tValue
+   set the blendlevel of tControl to tValue
+   if tElapsed<pDuration then
+      send "_aeTouchButtonFadeOut" && pControl,pDuration,pStart,pTarget to me in 25 millisecs
+   else
+      put pTarget into tTarget
+      replace  "§$aeQuote$§" with quote in tTarget
+      send "aeTouchButtonFadeOutDone" to tTarget
+      hide tControl
+      set the blendlevel of tControl  to 0
+   end if
+end _aeTouchButtonFadeOut
+
+on aeTouchButtonFadeOutDone
+   // trapped to avoid errors
+end aeTouchButtonFadeOutDone
+
 ## Attempt to optimize aeFadeIn as the pivot fade in post-jump aren't always 100% smooth
 on aePivotFadeIn pControl,pDuration
    if there is no pControl then return "aeError: "&pControl&&"is not a valid control reference"
