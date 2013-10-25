@@ -2,11 +2,7 @@ local sStopRespondingToTouchMoves
 
 on openCard
    
-   if the environment is "mobile" then      
-      
-      set the loc of btn "bg" to the loc of this cd
-      
-   end if   
+   if the environment is "mobile" then set the loc of btn "bg" to the loc of this cd
    
    put false into sStopRespondingToTouchMoves
    set the cCurrentAnimation of this card to empty
@@ -18,6 +14,21 @@ on openCard
    
 end openCard
 
+## Resets button UI to default state
+
+on resetButtonUI
+   
+   if the cLevelButtonTouchedUnlocked of this cd then // Reset only if corresponding level is unlocked
+      
+      put "level_number" & the cLevelButtonTouched of this card into tFieldTouched
+      put "btn_bg" & the cLevelButtonTouched of this card into tButtonBackground
+      set the blendLevel of fld tFieldTouched to 9
+      set the blendLevel of graphic tButtonBackground to 9
+      
+   end if
+   
+end resetButtonUI
+
 ## Displays the sets and levels
 
 on showContent
@@ -28,7 +39,7 @@ on showContent
    
    aeLockMoves
    aeFadeIn the long id of image "choose_a_level", 200 // Fade in title
-   aeFadeIn the long id of btn "stop", 200 // Fade in stop button
+   aeFadeIn the long id of group "stop_btn", 200 // Fade in stop button
    aeFadeIn the long id of group "all_sets", 300 // Fade in
    aeMoveTo the long id of group "all_sets", tPos, item 2 of the loc of this card, 800, "overshoot" // Slide in   
    aeUnlockMoves
@@ -92,6 +103,9 @@ on touchmove
       
       if abs(tDistanceMoved) > 0 then // If we've actually moved our finger
          
+         // If we've touched a button before moving, reset button UI to default state
+         if the cLevelButtonTouched of this card is not empty then resetButtonUI
+         
          clearBtnProperties // Use can no longer go to a level in this finger touch
          
          set the loc of group "all_sets" to the cLocOnTouchStartX of this card + tDistanceMoved, item 2 of the loc of group "all_sets" // Move the group of sets      
@@ -121,6 +135,8 @@ end touchmove
 
 on touchEnd
    
+   if the cLevelButtonTouched of this card is not empty then resetButtonUI // If we've touched a button, reset it's UI now that the touch has ended
+   
    if the cCurrentAnimation of this card is empty and the cLevelButtonTouched of this card is empty then // If user has swiped
       
       goToSet the cCurrentSet of the current stack // Go to current set
@@ -128,7 +144,7 @@ on touchEnd
    else if the cCurrentAnimation of this card is empty and the cLevelButtonTouched of this card is not empty and the cLevelButtonTouchedUnlocked of this card is true then
       
       set the cCurrentLevel of this stack to the cLevelButtonTouched of this card // Amend current level to the one stored in the tapped button
-
+      
       launchLevel // Run the stack-level handler to start the level
       
    end if

@@ -1462,9 +1462,10 @@ on configLevelSelectionCard pSetNumber
    deleteControlsFromCard tCardName // Delete any pre-existing controls from level-selection card   
    
    repeat with tControl = 1 to the number of controls in cd "level_select_template" // Go through all controls in template card
-      
-      copy control tControl of cd "level_select_template" to cd tCardName // Copy them over to the relevant actual level selection card
-      
+      put the long name of control tControl of cd "level_select_template" into tControlName // Get control name     
+      if "group" is in tControlName and word 1 of tControlName is "group" or "group" is not in tControlName then // Don't want to clone children of groups twice
+         copy control tControl of cd "level_select_template" to cd tCardName // Copy them over to the relevant actual level selection card
+      end if
    end repeat
    
    put the width of cd tCardName into tCardWidth // Get card width
@@ -1491,11 +1492,11 @@ on configLevelSelectionCard pSetNumber
    set the loc of image "choose_a_level" of cd tCardName to item 1 of the loc of this card, tTopPos // Position card title
    
    // Position stop button
-   set the left of btn "stop" of cd tCardName to item 1 of the loc of this card - (the width of btn "stop" of cd tCardName / 2)
-   set the bottom of btn "stop" of cd tCardName to the bottom of this card - (the height of btn "stop" of cd tCardName / 2)
+   set the left of group "stop_btn" of cd tCardName to item 1 of the loc of this card - (the width of group "stop_btn" of cd tCardName / 2)
+   set the bottom of group "stop_btn" of cd tCardName to the bottom of this card - (the height of group "stop_btn" of cd tCardName / 2)
    
    set the visible of image "choose_a_level" of cd tCardName to false // Hide card title
-   set the visible of btn "stop" of cd tCardName to false // Hide stop button
+   set the visible of group "stop_btn" of cd tCardName to false // Hide stop button
    
 end configLevelSelectionCard
 

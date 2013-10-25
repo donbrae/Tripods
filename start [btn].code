@@ -1,21 +1,29 @@
-on touchStart
-
-   put the cCurrentSet of this stack into tCurrentSetNumber // Get current set number
-   put "level_select_current_set" into tCardName // We want use the "current set" card
-   configLevelSelectionCard tCardName, tCurrentSetNumber // Cnnfigure card for current set
-   configNextLevelSelectCard tCurrentSetNumber // Configure card for next set
-   configPrevLevelSelectCard tCurrentSetNumber // Configure card for previous set
-   go cd tCardName // Go to the first set's card
-   
-end touchStart
-
 on mouseUp
-
-   put the cCurrentSet of this stack into tCurrentSetNumber // Get current set number
-   put "level_select_current_set" into tCardName // We want use the "current set" card
-   configLevelSelectionCard tCardName, tCurrentSetNumber // Cnnfigure card for current set
-   configNextLevelSelectCard tCurrentSetNumber // Configure card for next set
-   configPrevLevelSelectCard tCurrentSetNumber // Configure card for previous set
-   go cd tCardName // Go to the first set's card
    
+   if the cAnimation of this card is empty then
+      
+      set the cAnimation of this card to "fadeout"
+      put the cCurrentSet of this stack into tCurrentSetNumber // Get current set number
+      configLevelSelectionCard tCurrentSetNumber // Configure card for level selection            
+      
+      put 0 - the height of image "tripods_title" into tHideY // Calculate how much the Y needs to decrease to hide the title
+      
+      aeLockMoves
+      aeFadeOut the long id of group "elements",100 // Fade out elements group
+      aeMoveTo the long id of image "tripods_title", item 1 of the loc of image "tripods_title", tHideY, 300, "overshoot" // Slide title up
+      aeUnlockMoves
+      
+   end if
+     
 end mouseUp
+
+on aeFadeOutDone
+   
+   if the cAnimation of this card is "fadeout" then
+      
+      set the cAnimation of this card to empty
+      go cd "level_select" // Go to the first set's card
+      
+   end if   
+   
+end aeFadeOutDone

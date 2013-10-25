@@ -4,6 +4,7 @@ on preOpenCard
 
    set the visible of group "elements" to false // Hide elements group
    set the visible of image "tripods_title" to false // Hide title
+   set the cAnimation of this card to empty
    
 end preOpenCard
 
