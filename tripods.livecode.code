@@ -116,6 +116,7 @@ on saveState
    put "cCurrentLevel:" & the cCurrentLevel of this stack & return after tStateArray // Current level
    put "cCurrentSet:" & the cCurrentSet of this stack & return after tStateArray // Current set
    put "cTotalPoints:" & the cTotalPoints of this stack & return after tStateArray // Total points
+   put "cAudio:" & the cAudio of this stack & return after tStateArray // Audio on/off
    put "cFarthestPoint:" & the cFarthestPoint of this stack after tStateArray // Progress
    
    put tStateArray into URL ("file:state.txt") // Save to file
@@ -176,7 +177,7 @@ on configureLevelCard
    
    repeat with tControl = 1 to the number of controls in cd tLevelProperties["cLevelTemplate"] // Go through all controls in template card
       put the long name of control tControl of card tTemplateName into tControlName // Get control name     
-      if "group" is in tControlName and word 1 of tControlName is "group" or "group" is not in tControlName then // Don't want to clone children of groups twice 
+      if "group" is in tControlName and word 1 of tControlName is "group" and word 4 of tControlName is not "group" or "group" is not in tControlName then // Don't want to clone children of groups twice 
          copy control tControl of card tTemplateName to card "level" // Copy them over to the level
       end if
    end repeat
@@ -187,6 +188,7 @@ on configureLevelCard
    split tFootImageGrps by return and ":" // Split into array
    
    repeat for each line tKey in the keys of tFootImageGrps
+      
       put tFootImageGrps[tKey] & "@2x" into tFootImage // Concatenate foot image name
       put "foot" & tKey & "_src" into tButtonName // Concatenate button name      
       set the cAnim of btn tButtonName of cd "level" to the cAnim of grp tFootImageGrps[tKey] of the cd "elements" // Apply animation image list (from foot group custom properties) to the foot
@@ -197,6 +199,13 @@ on configureLevelCard
       setControlIcon tButtonName, "level", tFootLandingImage, "elements" // Set the icon
       
    end repeat
+   
+   // If there's a high score for this level, add it to the "Best" field
+   put the cHighScores[tCurrentLevel] of the current stack into tHighScore
+   if tHighScore is not empty then set the label of btn "previous_best_value" of cd "level" to tHighScore
+   
+   // Amend audio toggle button
+   if the cAudio of the current stack is true then set the blendLevel of graphic "line" of group "audio_toggle_btn" of cd "level" to 100
    
 end configureLevelCard
 
@@ -220,8 +229,8 @@ on positionLevelElements
    set the top of btn "previous_best_value" to the bottom of btn "moves_value" of the cd "level" - 6
    
    // Position "Exit" button   
-   set the bottom of group "stop_btn" of the cd "level" to the height of this cd - tMargin
-   set the right of group "stop_btn" of the cd "level" to the width of this cd - tMargin
+   set the bottom of group "app_controls" of the cd "level" to the height of this cd - tMargin
+   set the loc of group "app_controls" of the cd "level" to item 1 of the loc of this card, the height of this cd - (the height of group "app_controls" / 2) - tMargin
    
    if the environment is "mobile" then
       
@@ -508,7 +517,6 @@ end startGame
 
 on stopGame
    
-   aeStopMoving the long ID of btn "bg" of the cd "level" // Stop background moving
    put false into sGameRunning // Amend script-level flag
    set the pJumpTriggered of the cd "level" to false // Reset jump custom property
    cancelPendingMessages // Cancel any pending messages
@@ -1241,7 +1249,7 @@ on levelWin
    stopGame
    flashSprite
    
-   aeFadeOut the long id of btn "stop", 250 // Fade out stop button
+   aeFadeOut the long id of group "app_controls", 250 // Fade out stop button
       
    if sCurrentAnimation is "pivot" then
       
@@ -1428,7 +1436,7 @@ on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCusto
          put false into tLocked
       else if pSetNumber is item 1 of the cFarthestPoint of the current stack and x < item 2 of the cFarthestPoint of the current stack + 2 then // If this is the set to which player has progressed, and is before the level at which the player is now entitled to start the game
          put false into tLocked
-      else if pSetNumber is sLastSetFullyCompleted + 1 and pSetNumber is item 1 of the cFarthestPoint of the current stack + 1 and x is 1 then // If this is the first level in the "next" set,  it should be unlocked
+      else if pSetNumber is sLastSetFullyCompleted + 1 and pSetNumber is item 1 of the cFarthestPoint of the current stack + 1 and x is 1 then // If this is the first level in the "next" set, it should be unlocked
          put false into tLocked
       else if pSetNumber is 1 and x is 1 then // Set 1, Level 1 is always unlocked
          put false into tLocked
@@ -1444,8 +1452,13 @@ on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCusto
          set the cUnlocked of fld tLevelField of group tSetName of cd pCardName to true // Mark that this field is unlocked
       end if
       
-      if not tLocked and x is tLevelsArrayLength and pSetNumber < the cCurrentSet of this stack  then // If this is the last level in the set and it's not locked and we've already got to a higher set
-         put pSetNumber into sLastSetFullyCompleted // Make this set the most recently fully completed one
+      // Calculate the most recently fully completed set. NB: cFarthestPoint is the farthest point that has has been successfully completed. The current level will be one past this
+      if x is tLevelsArrayLength and not tLocked then // If this is the last level in the set and it's unlocked         
+         put item 1 of the cFarthestPoint of the current stack into tFarthestSet // The set with the farthest along level we've completed
+         put item 2 of the cFarthestPoint of the current stack into tFarthestLevel // Farthest along level within said set
+         if tFarthestSet > pSetNumber or tFarthestSet is pSetNumber and tFarthestLevel is x then // If the furthest set is above the set current being iterated over, or if the last level in said set is the farthest one to be completed, said set must be fully completed
+            put pSetNumber into sLastSetFullyCompleted // Record that this set is complete
+         end if
       end if
       
    end repeat
