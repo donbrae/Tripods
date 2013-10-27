@@ -153,13 +153,13 @@ end saveHighScores
 
 ## Level launch controller
 on launchLevel
-      
+   
+   stopGame // Defensive call to stopGame
    configureLevelCard
    
    go cd "level"
    
-   positionLevelElements
-   
+   positionLevelElements   
    setupLevel
    startGame
 
@@ -297,10 +297,6 @@ on setupLevel
             clone button "landing3_src"
             set the name of it to "landing3"
             set the class of it to "landing"
-         else if el is 8 then -- Pivot
-            clone button "pivot_src"
-            set the name of it to "pivot"
-            set the visible of it to false
          end if
          
          if el is not 0 then
@@ -309,12 +305,17 @@ on setupLevel
          
          put tX + sCellWidth into tX -- Next cell
          
-      end repeat 
+      end repeat
       
       put sCellWidth / 2 + the left of button "grid" into tX -- Back to beginning of row
       put tY + sCellWidth into tY -- Next row
       
-   end repeat   
+   end repeat
+   
+   // Clone pivot. It'll be positioned to tripod centroid by repositionPivot
+   clone button "pivot_src"
+   set the name of it to "pivot"
+   set the visible of it to false
    
    unlock screen
    
