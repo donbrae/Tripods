@@ -1396,6 +1396,7 @@ on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCusto
    copy group "set_template" of cd pCardName to group "all_sets" of cd pCardName // Clone the empty group we'll use as set for group (placing it in the parent group for all sets)
    put "set" & pSetNumber into tSetName
    set the name of it to tSetName // Set its name
+   set the layerMode of it to "dynamic" // Optimized rendering
    
    repeat with x = 1 to tLevelsArrayLength // Go through all levels in this set
       
