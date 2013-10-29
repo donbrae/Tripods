@@ -77,7 +77,6 @@ command clearCustomPropertySet pSet
 
 end clearCustomPropertySet
 
-
 ## Modification of aeFadeIn which lightly highlights button when touched
 on aeTouchButtonFadeIn pControl,pDuration
    local tTarget

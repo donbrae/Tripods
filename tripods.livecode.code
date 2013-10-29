@@ -155,12 +155,16 @@ end saveHighScores
 on launchLevel
    
    stopGame // Defensive call to stopGame
-   configureLevelCard
    
-   go cd "level"
+   configureLevelCard   
+   positionLevelElements
+   setupLevelUI
    
-   positionLevelElements   
-   setupLevel
+   lock screen for visual effect   
+   go cd "level"   
+   unlock screen with flip left normal
+   
+   initialiseLevel
    startGame
 
 end launchLevel
@@ -210,60 +214,56 @@ on configureLevelCard
 end configureLevelCard
 
 ## Position the relevant elements (to cater for different screen sizes)
-
 on positionLevelElements
    
-   set the loc of btn "grid" of the cd "level" to the loc of this card // Center game grid
-   put the width of this card - the right of btn "grid" into tMargin
+   set the loc of btn "grid" of cd "level" to the loc of this card // Center game grid
+   put the width of this card - the right of btn "grid" of cd "level" into tMargin
    
    // Position moves counter
-   set the left of fld "moves" of the cd "level" to tMargin - 6 // -6 because text adds its own margins
-   set the left of btn "moves_value" of the cd "level" to the right of fld "moves" of the cd "level"
-   set the top of fld "moves" of the cd "level" to tMargin - 12
-   set the top of btn "moves_value" of the cd "level" to tMargin - 12
+   set the left of fld "moves" of cd "level" to tMargin - 6 // -6 because text adds its own margins
+   set the left of btn "moves_value" of cd "level" to the right of fld "moves" of the cd "level"
+   set the top of fld "moves" of cd "level" to tMargin - 12
+   set the top of btn "moves_value" of cd "level" to tMargin - 12
    
    // Position "Previous Best" fields
-   set the left of fld "previous_best" of the cd "level" to tMargin - 6
-   set the left of btn "previous_best_value" of the cd "level" to the right of fld "previous_best" of the cd "level"   
-   set the top of fld "previous_best" to the bottom of btn "moves_value" of the cd "level" - 6
-   set the top of btn "previous_best_value" to the bottom of btn "moves_value" of the cd "level" - 6
+   set the left of fld "previous_best" of cd "level" to tMargin - 6
+   set the left of btn "previous_best_value" of cd "level" to the right of fld "previous_best" of cd "level"   
+   set the top of fld "previous_best" of cd "level" to the bottom of btn "moves_value" of cd "level" - 6
+   set the top of btn "previous_best_value" of cd "level" to the bottom of btn "moves_value" of cd "level" - 6
    
    // Position "Exit" button   
-   set the bottom of group "app_controls" of the cd "level" to the height of this cd - tMargin
-   set the loc of group "app_controls" of the cd "level" to item 1 of the loc of this card, the height of this cd - (the height of group "app_controls" / 2) - tMargin
+   set the bottom of group "footer_controls" of cd "level" to the height of this cd - tMargin
+   set the loc of group "footer_controls" of cd "level" to item 1 of the loc of this card, the height of this cd - round(the height of group "footer_controls" of cd "level" / 2.5) - tMargin
    
    if the environment is "mobile" then
       
-      set the loc of btn "bg" of the cd "level" to the loc of the cd "level"
-      set the loc of btn "grid" of the cd "level" to the loc of the cd "level"
+      set the loc of btn "bg" of cd "level" to the loc of this cd
+      set the loc of btn "grid" of cd "level" to the loc of this cd
       
    end if
    
 end positionLevelElements
 
-## Level setup
-
-on setupLevel
+## Level UI setup
+on setupLevelUI
    
-   put the width of btn "grid" into tGridWidth // Get width of grid
+   put the width of btn "grid" of cd "level" into tGridWidth // Get width of grid
    put 500 into sJumpAnimateSpeed // Speed in ms jump
    put 340 into sPivotAnimateSpeed // Speed in ms pivot
    
    // Get width of each circular 'cell'
    if tGridWidth is 608 then // 8x8 grid
-      put the width of btn "grid" / 8 into sCellWidth      
+      put the width of btn "grid" of cd "level" / 8 into sCellWidth      
    else if tGridWidth is 600 then // 6x6 grid
-      put the width of btn "grid" / 6 into sCellWidth
+      put the width of btn "grid" of cd "level" / 6 into sCellWidth
       put sJumpAnimateSpeed / 8 * 9 into sJumpAnimateSpeed // Slightly slower speed in ms jump
       put sPivotAnimateSpeed / 8 * 9 into sPivotAsPivotAnimateSpeednimateSpeed // Slightly slower speed in ms pivot
    end if
    
-   put sCellWidth / 2 + the left of btn "grid" into tX // Work out starting point on X axis
-   put sCellWidth / 2 + the top of btn "grid" into tY // And the Y
+   put sCellWidth / 2 + the left of btn "grid" of cd "level" into tX // Work out starting point on X axis
+   put sCellWidth / 2 + the top of btn "grid" of cd "level" into tY // And the Y
    
    put sLevelProperties["cElementPlacement"] into tElPlacement // Get placement grid
-   
-   lock screen
    
    repeat for each line l in tElPlacement -- Cycle through each line
       
@@ -271,74 +271,79 @@ on setupLevel
          
          ## Check button type
          if el is 4 then -- Block
-            clone button "block_src"
+            clone button "block_src" of cd "level"
             set the name of it to "block"
          else if el is 1 then -- Foot 1
-            clone button "foot1_src"
+            clone button "foot1_src" of cd "level"
             set the name of it to "foot1"
             set the class of it to "foot"
          else if el is 2 then -- Foot 2
-            clone button "foot2_src"
+            clone button "foot2_src" of cd "level"
             set the name of it to "foot2"
             set the class of it to "foot"
          else if el is 3 then -- Foot 3
-            clone button "foot3_src"
+            clone button "foot3_src" of cd "level"
             set the name of it to "foot3"
             set the class of it to "foot"
          else if el is 5 then -- Landing 1
-            clone button "landing1_src"
+            clone button "landing1_src" of cd "level"
             set the name of it to "landing1"
             set the class of it to "landing"
          else if el is 6 then -- Landing 2
-            clone button "landing2_src"
+            clone button "landing2_src" of cd "level"
             set the name of it to "landing2"
             set the class of it to "landing"
          else if el is 7 then -- Landing 3
-            clone button "landing3_src"
+            clone button "landing3_src" of cd "level"
             set the name of it to "landing3"
             set the class of it to "landing"
          end if
          
          if el is not 0 then
-            set the loc of the last button to tX,tY -- Place button on grid
+            set the loc of the last button of cd "level" to tX,tY -- Place button on grid
          end if
          
          put tX + sCellWidth into tX -- Next cell
          
       end repeat
       
-      put sCellWidth / 2 + the left of button "grid" into tX -- Back to beginning of row
+      put sCellWidth / 2 + the left of button "grid" of cd "level" into tX -- Back to beginning of row
       put tY + sCellWidth into tY -- Next row
       
    end repeat
    
    // Clone pivot. It'll be positioned to tripod centroid by repositionPivot
-   clone button "pivot_src"
+   clone button "pivot_src" of cd "level"
    set the name of it to "pivot"
    set the visible of it to false
    
-   unlock screen
+   set the loc of btn "bg" of cd "level" to the loc of this card // Background image to centre
+   
+end setupLevelUI
+
+## Initialise level
+on initialiseLevel
    
    // Bring sprite to top
-   set the layer of btn "foot3" to top
-   set the layer of btn "foot2" to top
-   set the layer of btn "foot1" to top
-   set the layer of btn "pivot" to top
+   set the layer of btn "foot3" of cd "level" to top
+   set the layer of btn "foot2" of cd "level" to top
+   set the layer of btn "foot1" of cd "level" to top
+   set the layer of btn "pivot" of cd "level" to top
    
    ## Store the starting positions of the feet
    
-   put item 1 of the loc of btn "foot1" into sFoot1Loc["x"] // X
-   put item 2 of the loc of btn "foot1" into sFoot1Loc["y"] // Y
+   put item 1 of the loc of btn "foot1" of cd "level" into sFoot1Loc["x"] // X
+   put item 2 of the loc of btn "foot1" of cd "level" into sFoot1Loc["y"] // Y
    
-   put item 1 of the loc of btn "foot2" into sFoot2Loc["x"]
-   put item 2 of the loc of btn "foot2" into sFoot2Loc["y"]
+   put item 1 of the loc of btn "foot2" of cd "level" into sFoot2Loc["x"]
+   put item 2 of the loc of btn "foot2" of cd "level" into sFoot2Loc["y"]
    
-   put item 1 of the loc of btn "foot3" into sFoot3Loc["x"]
-   put item 2 of the loc of btn "foot3" into sFoot3Loc["y"]   
+   put item 1 of the loc of btn "foot3" of cd "level" into sFoot3Loc["x"]
+   put item 2 of the loc of btn "foot3" of cd "level" into sFoot3Loc["y"]   
    
    ## Store pivot position
    
-   put the loc of btn "pivot" into sPivotLoc
+   put the loc of btn "pivot" of cd "level" into sPivotLoc
    
    ## Set various level values
    
@@ -346,7 +351,7 @@ on setupLevel
    put 0 into sMovesCounter // Reset move counter
    put false into sCollision // Set collision flag to false
    //put empty into sFootLandingLocs // Empty target foot location array
-   set the label of button "moves_value" to sMovesCounter // Amend moves counter
+   set the label of button "moves_value" of cd "level" to sMovesCounter // Amend moves counter
    put false into sCheckingForWin // Prevents further moves while code checks to see whether use has positioned feet at the target locations
    put false into sLevelWon
    put empty into sCurrentAnimation
@@ -361,14 +366,14 @@ on setupLevel
    ## Calculate landing locs
    
    // Get the icon ID of each foot
-   put the icon of btn "foot1" into tFoot1Icon
-   put the icon of btn "foot2" into tFoot2Icon
-   put the icon of btn "foot3" into tFoot3Icon
+   put the icon of btn "foot1" of cd "level" into tFoot1Icon
+   put the icon of btn "foot2" of cd "level" into tFoot2Icon
+   put the icon of btn "foot3" of cd "level" into tFoot3Icon
    
    // Get the locs of the three landing spots
-   put the loc of btn "landing1" into tLanding1Loc
-   put the loc of btn "landing2" into tLanding2Loc
-   put the loc of btn "landing3" into tLanding3Loc
+   put the loc of btn "landing1" of cd "level" into tLanding1Loc
+   put the loc of btn "landing2" of cd "level" into tLanding2Loc
+   put the loc of btn "landing3" of cd "level" into tLanding3Loc
    
    if tFoot1Icon is tFoot2Icon and tFoot1Icon is tFoot3Icon then // If all feet use the same icon      
       
@@ -421,12 +426,11 @@ on setupLevel
    end if
    
    put the cTotalMovesRemaining of the current stack into fld "moves_remaining" of cd "settings"
-   set the label of button "time_value" to 0
+   set the label of button "time_value" of cd "level" to 0
    
-end setupLevel
+end initialiseLevel
 
 // Hide the sprite
-
 on hideSprite
    
    set the vis of button "foot1" to false
@@ -436,7 +440,6 @@ on hideSprite
 end hideSprite
 
 // Flash the sprite
-
 on aeWrapper pAEFunc, pMilliSecs
    
    if pAEFunc is "fadeIn" then
@@ -511,8 +514,6 @@ on startGame
    flashSprite
    put true into sGameRunning   
    put the loc of this card into tCardLoc
-   set the loc of btn "bg" to the loc of this card // Background image to centre
-   //animateBackground
    
 end startGame
 
@@ -1250,7 +1251,7 @@ on levelWin
    stopGame
    flashSprite
    
-   aeFadeOut the long id of group "app_controls", 250 // Fade out stop button
+   aeFadeOut the long id of group "footer_controls", 250 // Fade out stop button
       
    if sCurrentAnimation is "pivot" then
       
@@ -1358,7 +1359,10 @@ end calculateStarRating
 on showWinCard
    
    stopGame
+   
+   lock screen for visual effect   
    go card "level_win" // Go to the success card
+   unlock screen with push down fast
    
 end showWinCard
 
@@ -1565,6 +1569,50 @@ on positionSets pCardName, pCardWidth, pBtnDiameter
    end if
    
 end positionSets
+
+## Position and show in-game controls
+on showInGameControlsOverlay
+   
+   set the layer of btn "message_overlay" to top
+   set the loc of group "app_controls" to item 1 of the loc of this card, round(item 2 of the loc of this card / 1.2) // Place controls 1/3 of the way down the card
+   set the layer of group "app_controls" to top
+   
+   // Show message overlay
+   set the visible of btn "message_overlay" to true
+   set the blendLevel of btn "message_overlay" to 0 
+   
+   aeLockMoves
+   aeMoveTo the long id of group "app_controls", item 1 of the loc of this card, item 2 of the loc of this card, 700, "overshoot" // Move controls
+   aeFadeIn the long id of group "app_controls", 500 // Fade in controls
+   aeUnlockMoves
+   
+end showInGameControlsOverlay
+
+## Hide message overlay
+on hideOverlay
+   
+   lock screen for visual effect
+   
+   set the visible of btn "message_overlay" to false
+   set the blendLevel of btn "message_overlay" to 100
+   
+   set the visible of group "app_controls" to false
+   set the blendLevel of group "app_controls" to 100
+   
+   unlock screen with dissolve very fast
+   
+end hideOverlay
+
+## Hide in-game controls
+on hideInGameControlsOverlay
+   
+   aeLockMoves
+   aeFadeOut the long id of group "app_controls", 100 // Fade in controls
+   aeUnlockMoves
+   
+   send "hideOverlay" to me in 120 millisecs
+   
+end hideInGameControlsOverlay
 
 on shutdown
    
