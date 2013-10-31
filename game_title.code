@@ -1,10 +1,10 @@
-local sTitlePosY
+local sTitlePosY, sAudioToggle, sAudioState
 
 on preOpenCard
 
    set the visible of group "elements" to false // Hide elements group
    set the visible of image "tripods_title" to false // Hide title
-   set the cAnimation of this card to empty
+   set the cCurrentAnimation of this card to empty
    
 end preOpenCard
 
@@ -37,15 +37,94 @@ on openCard
    put 0 - the height of image "tripods_title" into tHideY // Calculate how much the Y needs to decrease to hide the title off screen   
    set the loc of image "tripods_title" to item 1 of the loc of image "tripods_title", tHideY // Put the title offscreen
    
-   send "showContent" to me in 250 millisecs
+   send "showContent" to me in 250 millisecs   
+   amendAudioTogglesUI
    
 end openCard
+
+## Amend audio toggles UI
+on amendAudioTogglesUI
+   
+   if the cAudioPrefs["music_toggle"] of the current stack is "off" and the visible of btn "music_toggle_bg_on" is true then
+      
+      put the long id of btn "music_toggle" of cd "game_title" into tToggle
+      set the visible of btn "music_toggle_bg_on" of cd "game_title" to false
+      set the visible of btn "music_toggle_bg_off" of cd "game_title" to true
+      set the loc of tToggle to item 1 of the loc of tToggle - 55, item 2 of the loc of tToggle
+      
+   end if
+   
+   if the cAudioPrefs["sfx_toggle"] of the current stack is "off" and the visible of btn "sfx_toggle_bg_on" is true then
+      
+      put the long id of btn "sfx_toggle" of cd "game_title" into tToggle
+      set the visible of btn "sfx_toggle_bg_on" of cd "game_title" to false
+      set the visible of btn "sfx_toggle_bg_off" of cd "game_title" to true
+      set the loc of tToggle to item 1 of the loc of tToggle - 55, item 2 of the loc of tToggle
+      
+   end if
+   
+end amendAudioTogglesUI
+
+on moveToggle pToggle
+   
+   if the cCurrentAnimation of this cd is empty then
+      
+      set the cCurrentAnimation of this cd to "audio_toggle" // Flag that an audio toggle animation is happening
+      
+      put pToggle into sAudioToggle // Store toggle name at script level
+      
+      put the cAudioPrefs[sAudioToggle] of the current stack into sAudioState
+      put the loc of control pToggle into tToggleLoc
+      put 350 into tAnimSpeed
+      
+      // Store toggle backgrounds
+      put the short name of control pToggle & "_bg_off" into tToggleBgOff
+      put the short name of control pToggle & "_bg_on" into tToggleBgOn
+      
+      if sAudioState is "on" then
+         
+         aeLockMoves
+         aeMoveTo the long id of control pToggle, item 1 of tToggleLoc - 55, item 2 of tToggleLoc, tAnimSpeed, "out" // Shunt toggle
+         aeFadeOut the long id of control tToggleBgOn, tAnimSpeed // Fade out "on" background
+         aeFadeIn the long id of control tToggleBgOff, tAnimSpeed // Fade in "off" background
+         aeUnlockMoves
+         
+      else if sAudioState is "off" then
+         
+         aeLockMoves
+         aeMoveTo the long id of control pToggle, item 1 of tToggleLoc + 55, item 2 of tToggleLoc, tAnimSpeed, "inOut"
+         aeFadeOut the long id of control tToggleBgOff, tAnimSpeed / 2
+         aeFadeIn the long id of control tToggleBgOn, tAnimSpeed / 2
+         aeUnlockMoves
+         
+      end if
+      
+   end if
+   
+end moveToggle
 
 on aeMoveDone
    
    if the cCurrentAnimation of this card is "fadein" then // If the sets have been shunted
       
       set the cCurrentAnimation of this card to empty
+      
+   else if the cCurrentAnimation of this card is "audio_toggle" then
+      
+      // Switch states
+      if sAudioState is "on" then      
+         set the cAudioPrefs[sAudioToggle] of the current stack to "off" // Amend the stacks preferences property set
+         set the cState of the btn sAudioToggle of this cd to "off" // Set toggle button custom property
+      else if sAudioState is "off" then      
+         set the cAudioPrefs[sAudioToggle] of the current stack to "on"
+         set the cState of the btn sAudioToggle of this cd to "on"
+      end if
+      
+      set the cCurrentAnimation of this card to empty
+            
+   else if the cCurrentAnimation of this card is "show_overlay" then
+      
+      set the cCurrentAnimation of this cd to empty
       
    end if
    

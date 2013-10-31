@@ -67,13 +67,11 @@ end openStack
 on restoreGame
    
    // Prefs   
-   If there is a file "prefs.txt" then
+   If there is a file "audioprefs.txt" then
       
-      put URL ("file:prefs.txt") into tPrefs // Get prefs from file
-      split tPrefs by return and ":" // Split into array   
-      //set the customProperties["cPrefs"] of this stack to tPrefs // Set the tPrefs custom property to value of array
-      
-      // Amend Settings card UI
+      put URL ("file:audioprefs.txt") into tAudioPrefs // Get prefs from file
+      split tAudioPrefs by return and ":" // Split into array   
+      set the customProperties["cAudioPrefs"] of this stack to tAudioPrefs // Set the cAudioPrefs custom property to value of array
       
    end if
    
@@ -92,11 +90,11 @@ on restoreGame
    
    // High scores
    if there is a file "highscores.txt" then    
-        
+      
       put URL ("file:highscores.txt") into tHighScores // Get text file   
       split tHighScores by return and ":" // Split into array   
       set the customProperties["cHighScores"] of this stack to tHighScores // Set the array to value of cHighScores custom property
-   
+      
    end if 
    
 end restoreGame
@@ -105,7 +103,7 @@ end restoreGame
 on closeStack
    
    saveState
-   savePrefs
+   saveAudioPrefs
    saveHighScores
    
 end closeStack
@@ -123,19 +121,19 @@ on saveState
    
 end saveState
 
-## Saves game's preferences when app is closed
-on savePrefs
+## Saves game's audio preferences when app is closed
+on saveAudioPrefs
    
-   put the customProperties["cPrefs"] of the current stack into tPrefs // Get preferences custom property as an array
+   put the customProperties["cAudioPrefs"] of the current stack into tAudioPrefs // Get preferences custom property as an array
    
    // Cycle through the array and format for saving to file
-   repeat for each line tKey in the keys of tPrefs
-      put tKey & ":" & tPrefs[tKey] & return after tArrayContents
+   repeat for each line tKey in the keys of tAudioPrefs
+      put tKey & ":" & tAudioPrefs[tKey] & return after tArrayContents
    end repeat
    
-   put tArrayContents into URL ("file:prefs.txt") // Save to file
+   put tArrayContents into URL ("file:audioprefs.txt") // Save to file
    
-end savePrefs
+end saveAudioPrefs
 
 ## Saves game's high scores when app is closed
 on saveHighScores
@@ -152,7 +150,9 @@ on saveHighScores
 end saveHighScores
 
 ## Level launch controller
-on launchLevel
+on launchLevel pType
+   
+   local tEffect
    
    stopGame // Defensive call to stopGame
    
@@ -160,13 +160,19 @@ on launchLevel
    positionLevelElements
    setupLevelUI
    
+   if pType is not "next" then      
+      put "push up" into tEffect
+   else if pType is "next" then
+      put "push left" into tEffect
+   end if
+   
    lock screen for visual effect   
    go cd "level"   
-   unlock screen with flip left normal
+   unlock screen with tEffect normal
    
    initialiseLevel
    startGame
-
+   
 end launchLevel
 
 ## Copies controls from relevant level template to the actual level card
@@ -425,7 +431,6 @@ on initialiseLevel
       
    end if
    
-   put the cTotalMovesRemaining of the current stack into fld "moves_remaining" of cd "settings"
    set the label of button "time_value" of cd "level" to 0
    
 end initialiseLevel
@@ -550,7 +555,6 @@ on incrMoves
             
       set the label of button "moves_value" to sMovesCounter // Amend moves counter
       set the cTotalMovesRemaining of the current stack to the cTotalMovesRemaining of the current stack - 1 // Total moves--
-      put the cTotalMovesRemaining of the current stack into fld "moves_remaining" of cd "settings" // Amend total moves counter
       
    end if
    
