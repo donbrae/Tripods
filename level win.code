@@ -116,7 +116,7 @@ on calculatePoints pLevel, pCurrentSet
    
 end calculatePoints
 
-on openCard
+on showRating
    
    put the cStarRating of this card into tStarRating
    
@@ -139,6 +139,12 @@ on openCard
       send "showNav" to me in 800 millisecs
       
    end if
+   
+end showRating
+
+on openCard
+   
+   send "showRating" to me in 150 millisecs
    
 end openCard
 

@@ -211,7 +211,7 @@ on configureLevelCard
    end repeat
    
    // If there's a high score for this level, add it to the "Best" field
-   put the cHighScores[tCurrentLevel] of the current stack into tHighScore
+   put item 1 of the cHighScores[tCurrentLevel] of the current stack into tHighScore
    if tHighScore is not empty then set the label of btn "previous_best_value" of cd "level" to tHighScore
    
    // Amend audio toggle button
@@ -1272,7 +1272,7 @@ on levelWin
    
    put the cCurrentSet of this stack into tCurrentSet // Get current set
    put "set" & tCurrentSet & "_level" & the cCurrentLevel of this stack into tLevelName // Get level name
-   put the cHighScores[tLevelName] of this stack into tCurrentHighScore // Get previous high score (will be empty on first attempt)
+   put item 1 of the cHighScores[tLevelName] of this stack into tCurrentHighScore // Get previous high score (will be empty on first attempt)
    
    set the cCurrentHighScore of cd "level_win" to tCurrentHighScore // Set current high score property of win card (could be empty)
    set the cNewHighScore of cd "level_win" to empty // Empty new high score property of win card
@@ -1289,10 +1289,10 @@ on levelWin
       put 5 into cBonusPoints // Give 5 bonus points
       
       // Record the current and new high scores for the win card
-      set the cCurrentHighScore of cd "level_win" to the cHighScores[tLevelName] of this stack
+      set the cCurrentHighScore of cd "level_win" to item 1 of the cHighScores[tLevelName] of this stack
       set the cNewHighScore of cd "level_win" to sMovesCounter
       
-      set the cHighScores[tLevelName] of this stack to sMovesCounter // Set the high score for this level to current value of moves counter
+      set the cHighScores[tLevelName] of this stack to sMovesCounter & "," & calculateStarRating() // Set the high score and star rating for this level to current value of moves counter
       put "You have achieved a new personal best for this level of " & sMovesCounter & " moves!" into tNewHighScoreMsg
       
    else
@@ -1460,6 +1460,8 @@ on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCusto
          set the cUnlocked of fld tLevelField of group tSetName of cd pCardName to false // Mark that this field is locked
       else // If the level is unlocked
          set the cUnlocked of fld tLevelField of group tSetName of cd pCardName to true // Mark that this field is unlocked
+         put getLevelStarRating(pSetNumber, x) into tLevelStarRating
+         addStarRating tLevelStarRating, pCardName, pSetNumber, x, pPadding
       end if
       
       // Calculate the most recently fully completed set. NB: cFarthestPoint is the farthest point that has has been successfully completed. The current level will be one past this
@@ -1475,8 +1477,37 @@ on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCusto
    
 end createSet
 
-## Controls creation of set/level selection groups (panels allowing the user to select which level and set they'd like to play)
+on addStarRating pLevelStarRating, pCardName, pSetNumber, pLevelNumber, pPadding
+   
+   if pLevelStarRating is not empty then
+      
+      local tSetGroup, tLevelField, tStarGroupToClone
+      
+      put "set" & pSetNumber into tSetGroup // The name of the set the field is in
+      put "level_number" & pLevelNumber into tLevelField // The name of the field in said set
+      
+      put item 1 of the loc of field tLevelField of group tSetGroup of cd pCardName into tStarLocX // Get x coord of where we're going to put start rating
+      put the bottom of field tLevelField of group tSetGroup of cd pCardName + (pPadding / 3) into tStarLocY // Get y coord
+      
+      put pLevelStarRating & "_star" into tStarGroupToClone      
+      copy group tStarGroupToClone of cd pCardName to group tSetGroup of cd pCardName // Clone relevant star rating group
+      set the loc of it to tStarLocX, tStarLocY
+   
+   end if
+   
+end addStarRating
 
+## Gets star rating for specific level
+function getLevelStarRating pSetNumber, pLevelNumber
+   
+   local tPropertyName
+   
+   put "set" & pSetNumber & "_level" & pLevelNumber into tPropertyName // Property name within cHighScores that we're looking for
+   return item 2 of the cHighScores[tPropertyName] of the current stack // Return the star rating value of said property
+   
+end getLevelStarRating
+
+## Controls creation of set/level selection groups (panels allowing the user to select which level and set they'd like to play)
 on configLevelSelectionCard pSetNumber
    
    // Setup
