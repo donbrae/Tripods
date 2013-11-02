@@ -182,7 +182,9 @@ on configureLevelCard
    put "set" & tCurrentSet & "_level" & the cCurrentLevel of this stack into tCurrentLevel // Get level name
    put the customProperties[tCurrentLevel] of this stack into tLevelProperties // Get level's custom properties
    put tLevelProperties into sLevelProperties // Make level properties available to whole script
-   put tLevelProperties["cLevelTemplate"] into tTemplateName
+   put tLevelProperties["cLevelTemplate"] into tTemplateName   
+   set the icon of btn "bg" of cd tTemplateName to the cSetBackgrounds[tCurrentSet] of the current stack // Set image of background button
+   
    deleteControlsFromCard "level" // Delete any existing controls from the "level" card
    
    repeat with tControl = 1 to the number of controls in cd tLevelProperties["cLevelTemplate"] // Go through all controls in template card
@@ -551,12 +553,8 @@ end goTimer
 
 on incrMoves
    
-   if sGameRunning then
-            
-      set the label of button "moves_value" to sMovesCounter // Amend moves counter
-      set the cTotalMovesRemaining of the current stack to the cTotalMovesRemaining of the current stack - 1 // Total moves--
-      
-   end if
+   set the label of button "moves_value" to sMovesCounter // Amend moves counter
+   set the cTotalMovesRemaining of the current stack to the cTotalMovesRemaining of the current stack - 1 // Total moves--
    
 end incrMoves
 
@@ -1382,7 +1380,6 @@ function isAnimating
 end isAnimating
 
 ## Creates a pseudocard for each set of levels in the game
-
 on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCustomPropertySets
    
    put 1 into tCount
