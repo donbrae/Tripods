@@ -13,7 +13,6 @@ local sFootLanding2Locs
 local sFootLanding3Locs
 
 local sLevelProperties
-local sGameRunning
 local sLevelWon
 
 local sCheckingForWin
@@ -507,7 +506,7 @@ on animateBackground
    send "aeMoveTo the long id of btn tBackground of the card tCard, 0, item 2 of the loc of this card, 20000" to me in 1 millisecs // To right
    send "aeMoveTo the long id of btn tBackground of the card tCard, the width of this card, item 2 of the loc of this card, 20000" to me in 20100 millisecs // To left
    
-   if sGameRunning then
+   if the cGameRunning of the current stack is true then
       
       send "animateBackground" to me in 40200 millisecs // Repeat animation
       
@@ -519,14 +518,14 @@ on startGame
    
    repositionPivot "launch"
    flashSprite
-   put true into sGameRunning   
+   set the cGameRunning of the current stack to true 
    put the loc of this card into tCardLoc
    
 end startGame
 
 on stopGame
    
-   put false into sGameRunning // Amend script-level flag
+   set the cGameRunning of the current stack to false // Amend flag
    set the pJumpTriggered of the cd "level" to false // Reset jump custom property
    cancelPendingMessages // Cancel any pending messages
    
@@ -542,10 +541,7 @@ end startTimer
 on goTimer
    
    // Stop time when game stops running
-   if not sGameRunning then
-      exit to top
-   end if
-   
+   if the cGameRunning of the current stack is false then exit to top   
    set the label of btn "time_value" to 0 + (the seconds - sTime)
    send "goTimer" to me in 1 millisec
    
@@ -697,7 +693,7 @@ end goJump
 
 on hidePivot pSpeed
    
-   if sGameRunning then
+   if the cGameRunning of the current stack is true then
       
       put the long ID of btn "pivot" into tPivot      
       aeFadeOut tPivot, pSpeed
@@ -710,7 +706,7 @@ end hidePivot
 
 on showPivot pSpeed
    
-   if sGameRunning and not sLevelWon then
+   if the cGameRunning of the current stack is true and not sLevelWon then
       
       put the long ID of btn "pivot" into tPivot   
       set the layer of tPivot to top
@@ -746,7 +742,7 @@ end animateFoot
 
 on repositionPivot pEvent
    
-   if sGameRunning or pEvent is "launch" or sLevelWon then // If during gameplay, or as we're just starting the game, or we've just won a level
+   if the cGameRunning of the current stack is true or pEvent is "launch" or sLevelWon then // If during gameplay, or as we're just starting the game, or we've just won a level
       
       // Get angles of foot one to other two feet
       put the loc of btn "foot1" into tFoot1
@@ -868,7 +864,7 @@ on repositionPivot pEvent
          send "aeMoveTo tPivot, item 1 of sPivotLoc, item 2 of sPivotLoc, 200" to me in 1 millisecs
       else if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "jump" then // If the pivot needs to change location after a jump
          set the loc of btn "pivot" to sPivotLoc // Set new loc right away
-      else if not sGameRunning then // On card load, before game is running
+      else if the cGameRunning of the current stack is false then // On card load, before game is running
          set the loc of btn "pivot" to sPivotLoc  
       end if
       
@@ -1206,7 +1202,7 @@ end jumpBack
 
 on checkWin
    
-   if sGameRunning and not sCheckingForWin and not isAnimating() then
+   if the cGameRunning of the current stack is true and not sCheckingForWin and not isAnimating() then
       
       put true into sCheckingForWin // Flag that we're checking for a win
       
