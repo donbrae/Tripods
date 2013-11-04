@@ -149,25 +149,17 @@ on saveHighScores
 end saveHighScores
 
 ## Level launch controller
-on launchLevel pType
-   
-   local tEffect
-   
+on launchLevel
+
    stopGame // Defensive call to stopGame
    
    configureLevelCard   
    positionLevelElements
    setupLevelUI
    
-   if pType is not "next" then      
-      put "push up" into tEffect
-   else if pType is "next" then
-      put "push left" into tEffect
-   end if
-   
-   lock screen for visual effect   
-   go cd "level"   
-   unlock screen with tEffect normal
+   lock screen for visual effect
+   go cd "level"
+   unlock screen with dissolve fast
    
    initialiseLevel
    startGame
@@ -324,7 +316,7 @@ on setupLevelUI
    set the name of it to "pivot"
    set the visible of it to false
    
-   set the loc of btn "bg" of cd "level" to the loc of this card // Background image to centre
+   //set the loc of btn "bg" of cd "level" to the loc of this card // Background image to centre
    
 end setupLevelUI
 
@@ -481,8 +473,9 @@ end flashSprite
 
 on test
    
-   aeStopMoving the long ID of btn "bg" of the cd "level"
-   cancelPendingMessages
+   lock screen for visual effect   
+   set the visible of btn "grid" to false 
+   unlock screen with "dissolve" very fast
    
 end test
 
@@ -1357,10 +1350,20 @@ end calculateStarRating
 on showWinCard
    
    stopGame
+   set the icon of btn "bg" of cd "level_win" to the icon of btn "bg" of cd "level"
    
-   lock screen for visual effect   
+   // Fade out card contents
+   lock screen for visual effect
+   put the number of controls of cd "level" into tCount   
+   repeat with x = tCount down to 1
+      if the short name of control x is not "bg" then delete control x of cd "level"
+   end repeat
+   unlock screen with dissolve very fast
+   
+   // Go to win screen
+   lock screen for visual effect
    go card "level_win" // Go to the success card
-   unlock screen with push down fast
+   unlock screen with dissolve very fast
    
 end showWinCard
 

@@ -6,7 +6,7 @@ on openCard
    
    put false into sStopRespondingToTouchMoves
    set the cCurrentAnimation of this card to empty
-   set the cScreenBeingTouched of this card to empty
+   set the cSetOfButtonTouched of this card to empty
    set the cLocOnTouchStartX of this card to item 1 of the loc of group "all_sets" // Store x of group starting position loc
    clearBtnProperties
    
@@ -20,10 +20,11 @@ on resetButtonUI
    
    if the cLevelButtonTouchedUnlocked of this cd then // Reset only if corresponding level is unlocked
       
-      put "level_number" & the cLevelButtonTouched of this card into tFieldTouched
-      put "btn_bg" & the cLevelButtonTouched of this card into tButtonBackground
-      set the blendLevel of fld tFieldTouched to 9
-      set the blendLevel of graphic tButtonBackground to 9
+      put "level_number" & the cLevelButtonTouched of this card into tFieldTouched // Get name of field touched
+      put "btn_bg" & the cLevelButtonTouched of this card into tButtonBackground // And the name of the corresponding background graphic
+      put the cSetOfButtonTouched of this card into tParentSet // Get the set name the touched button belongs to
+      set the blendLevel of fld tFieldTouched of group tParentSet to 9
+      set the blendLevel of graphic tButtonBackground of group tParentSet to 9
       
    end if
    
@@ -145,7 +146,10 @@ on touchEnd
       
       set the cCurrentLevel of this stack to the cLevelButtonTouched of this card // Amend current level to the one stored in the tapped button
       
-      launchLevel // Run the stack-level handler to start the level
+      // Start the level
+      lock screen for visual effect
+      go cd "start_level"
+      unlock screen with push up fast
       
    end if
    

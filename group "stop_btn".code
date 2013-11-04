@@ -7,11 +7,16 @@ end mouseDown
 // Is fired only if mouse up happens over group
 on mouseUp
    
-   if the cCurrentAnimation of this card is empty then      
-      go card "game_title"      
+   if the cGameRunning of the current stack is true then
+      
+      stopGame
+      set the blendLevel of graphic "bg_fill" of me to 100 // Hide solid background
+      
+      lock screen for visual effect   
+      go card "game_title"
+      unlock screen with push down fast
+      
    end if
-   
-   set the blendLevel of graphic "bg_fill" of me to 100 // Hide solid background
    
 end mouseUp
 
