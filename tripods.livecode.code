@@ -861,6 +861,8 @@ on repositionPivot pEvent
          set the loc of btn "pivot" to sPivotLoc  
       end if
       
+      set the layer of btn "pivot" of cd "level" to top // Make sure pivot is on top (important after it's been "demoted" during jump)
+      
    end if
    
 end repositionPivot
@@ -1567,7 +1569,9 @@ on positionSets pCardName, pCardWidth, pBtnDiameter
          put item 1 of the loc of group "set1" of cd pCardName into tPrevGroupLocX // Get x loc of set 1         
          put "set" & i into tSetName // Get set name         
          set the left of group tSetName of cd pCardName to the right of cd pCardName - (pBtnDiameter / 2) // Position group so half of the first button of the next set is showing at the right of the card
-         set the loc of group tSetName of cd pCardName to item 1 of the loc of group tSetName of cd pCardName, item 2 of the loc of this card // Deal with group's Y position
+         //set the loc of group tSetName of cd pCardName to item 1 of the loc of group tSetName of cd pCardName, item 2 of the loc of this card // Deal with group's Y position
+         set the loc of group tSetName of cd pCardName to item 1 of the loc of group tSetName of cd pCardName, item 2 of the loc of this cd // Align on X axis         
+         set the top of group tSetName of cd pCardName to the top of group "set1" of cd pCardName // Align on Y axis         
          put item 1 of the loc of group tSetName of cd pCardName into tSet2GroupLocX // Get x loc of set 2         
          put tSet2GroupLocX - tPrevGroupLocX into tDistanceBetweenLocs // Store distance between the locs of set 1 and set 2
          
@@ -1576,7 +1580,9 @@ on positionSets pCardName, pCardWidth, pBtnDiameter
          put "set" & i - 1 into tPrevSetName // Get previous set's name
          put item 1 of the loc of group tPrevSetName of cd pCardName into tPrevGroupLocX // Get x loc of previous set's group         
          put "set" & i into tSetName // Get set name         
-         set the loc of group tSetName of cd pCardName to tPrevGroupLocX + tDistanceBetweenLocs, item 2 of the loc of this card // Position group relative to previous
+         //set the loc of group tSetName of cd pCardName to tPrevGroupLocX + tDistanceBetweenLocs, item 2 of the loc of this card // Position group relative to previous
+         set the loc of group tSetName of cd pCardName to tPrevGroupLocX + tDistanceBetweenLocs, item 2 of the loc of this card // Align on X axis relative to previous set
+         set the top of group tSetName of cd pCardName to the top of group "set1" of cd pCardName // Align on Y axis
          
       end if
       
