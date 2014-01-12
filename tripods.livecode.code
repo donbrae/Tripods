@@ -472,10 +472,9 @@ on flashSprite
 end flashSprite
 
 on test
+   put the long ID of group "elements" of the card "game_title" into tElements
    
-   lock screen for visual effect   
-   set the visible of btn "grid" to false 
-   unlock screen with "dissolve" very fast
+   centerX(tElements)
    
 end test
 
@@ -1511,7 +1510,7 @@ on configLevelSelectionCard pSetNumber
    // Setup
    put the cNumberOfSets of the current stack into tNumberOfSets // Get number of sets   
    put "level_select" into tCardName // Get level-selection card name   
-   deleteControlsFromCard tCardName // Delete any pre-existing controls from level-selection card   
+   deleteControlsFromCard tCardName // Delete any pre-existing controls from level-selection card
    
    repeat with tControl = 1 to the number of controls in cd "level_select_template" // Go through all controls in template card
       put the long name of control tControl of cd "level_select_template" into tControlName // Get control name     
@@ -1520,7 +1519,7 @@ on configLevelSelectionCard pSetNumber
       end if
    end repeat
    
-   put the width of cd tCardName into tCardWidth // Get card width
+   put the width of the current stack into tCardWidth // Get card width
    put round(tCardWidth / 7) into tPadding // Work out padding
    put tCardWidth - (tPadding * 2) into tCardWidth // New width of card minus padding
    put round(tCardWidth / 4.5) into tBtnDiameter // Calculate button diameter   
@@ -1539,8 +1538,8 @@ on configLevelSelectionCard pSetNumber
    
    positionSets tCardName, tCardWidth, tBtnDiameter // Position the newly created groups of sets
    set the visible of group "all_sets" of cd tCardName to false // Hide group of sets
-   put the height of this card / 10 into tTopPos
-   put the height of this card - round(tTopPos / 2) into tBottomPos
+   put the height of the current stack / 10 into tTopPos
+   put the height of the current stack - round(tTopPos / 2) into tBottomPos
    set the loc of image "choose_a_level" of cd tCardName to item 1 of the loc of this card, tTopPos // Position card title
    
    // Position stop button

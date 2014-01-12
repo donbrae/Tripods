@@ -1,7 +1,7 @@
 local sTitlePosY, sAudioToggle, sAudioState
 
 on preOpenCard
-
+   
    set the visible of group "elements" to false // Hide elements group
    set the visible of image "tripods_title" to false // Hide title
    set the cCurrentAnimation of this card to empty
@@ -35,7 +35,7 @@ on openCard
    
    // Shunt title offscreen
    put 0 - the height of image "tripods_title" into tHideY // Calculate how much the Y needs to decrease to hide the title off screen   
-   set the loc of image "tripods_title" to item 1 of the loc of image "tripods_title", tHideY // Put the title offscreen
+   set the loc of image "tripods_title" to item 1 of the loc of this card, tHideY // Put the title offscreen
    
    send "showContent" to me in 250 millisecs   
    amendAudioTogglesUI
