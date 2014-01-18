@@ -20,7 +20,6 @@ local sCheckingForWin
 local sMovesCounter
 
 global gTouchStartLoc
-global gScale
 global gTouchedFoot
 
 local sLastSetFullyCompleted // Updated when cycling through sets so we know which the last fully complete set is
@@ -35,19 +34,9 @@ local sCollision
 on preOpenStack
    
    set the accelleratedRendering of this stack to true
+   set the fullscreenmode of me to "noBorder"
    set the defaultFolder to specialFolderPath("documents") // Where we write files to (good for iOS and Mac OS X)
    start using stack "Helper"
-   
-   if the environment is "mobile" then
-
-      set the rect of this stack to the screenrect // Resize the stack
-      
-      if iphoneDeviceScale() is "2" then // Returns 2 on a retina display, 1 otherwise
-         put 2 into gScale
-         iphoneUseDeviceResolution true, true // Sets whether the full resolution of high-resolution devices is to be used
-      end if
-      
-   end if
    
 end preOpenStack
 
