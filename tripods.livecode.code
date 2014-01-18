@@ -34,7 +34,8 @@ local sCollision
 on preOpenStack
    
    set the accelleratedRendering of this stack to true
-   set the fullscreenmode of me to "noBorder"
+   set the fullscreenmode of this stack to "noScale" -- Centres stack on device screen
+   iphoneUseDeviceResolution true, true -- Handles scaling
    set the defaultFolder to specialFolderPath("documents") -- Where we write files to (good for iOS and Mac OS X)
    start using stack "Helper"
    
