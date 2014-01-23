@@ -21,6 +21,7 @@ local sMovesCounter
 
 global gTouchStartLoc
 global gTouchedFoot
+global gDataStackPath -- Data stack storing game state on app close
 
 local sLastSetFullyCompleted -- Updated when cycling through sets so we know which the last fully complete set is
 
@@ -34,10 +35,17 @@ local sCollision
 on preOpenStack
    
    set the accelleratedRendering of this stack to true
-   set the fullscreenmode of this stack to "noScale" -- Centres stack on device screen
-   iphoneUseDeviceResolution true, true -- Handles scaling
+   
+   if the environment is "mobile" then
+      set the fullscreenmode of this stack to "noScale" -- Centres stack on device screen
+      iphoneUseDeviceResolution true, true -- Handles scaling
+   end if
+   
    set the defaultFolder to specialFolderPath("documents") -- Where we write files to (good for iOS and Mac OS X)
    start using stack "Helper"
+   
+   setupDataStack
+   restoreLevelCardFromDataStack
    
 end preOpenStack
 
@@ -51,6 +59,51 @@ on openStack
    restoreGame
    
 end openStack
+
+-- Sets up hidden stack storing level UI state
+command setupDataStack
+   local tmp
+   
+   put specialFolderPath("documents") into gDataStackPath
+   put gDataStackPath & "/data.livecode" into gDataStackPath
+         
+   if not (there is a file gDataStackPath) then
+      
+      create stack "gameDataStack"
+      put it into tmp
+      set the visible of tmp to false
+      set the filename of tmp to gDataStackPath
+      save tmp
+      go stack "tripods"
+      
+   end if
+
+end setupDataStack
+
+-- Makes copy of level card and stores it in data stack
+command saveLevelCardToDataStack
+   
+   copy card "level" of this stack to stack gDataStackPath
+   
+end saveLevelCardToDataStack
+
+-- Gets copy of level card and moves it to the main stack
+command restoreLevelCardFromDataStack   
+   
+   // If we've previously saved level data on exit
+   if there is a card "level" of stack gDataStackPath then
+      
+      delete card "level" of this stack // Delete level card
+      copy card "level" of stack gDataStackPath to this stack // Replace it with saved level
+      goStartLevel
+      
+   else
+      
+      go card "game_title"
+      
+   end if
+   
+end restoreLevelCardFromDataStack
 
 -- Restores game's state on open
 on restoreGame
@@ -95,7 +148,29 @@ on closeStack
    saveAudioPrefs
    saveHighScores
    
+   // If we close the app during a game
+   if the cGameRunning of the current stack is true then
+      
+      saveLevelCardToDataStack // Save the card to the data stack
+      
+   else 
+      
+      delete card "level" of stack gDataStackPath // Otherwise delete any level card from the data stack
+      
+   end if
+   
+   save stack gDataStackPath
+   
 end closeStack
+
+-- Controls process when app is closed
+--on closeStack
+
+--   saveState
+--   saveAudioPrefs
+--   saveHighScores
+
+--end closeStack
 
 -- Saves game's state when app is closed
 on saveState
@@ -138,6 +213,17 @@ on saveHighScores
    
 end saveHighScores
 
+on goStartLevel
+   
+   lock screen for visual effect
+   go cd "level"
+   unlock screen with dissolve fast
+   
+   initialiseLevel
+   startGame
+   
+end goStartLevel
+
 -- Level launch controller
 on launchLevel
 
@@ -147,12 +233,7 @@ on launchLevel
    positionLevelElements
    setupLevelUI
    
-   lock screen for visual effect
-   go cd "level"
-   unlock screen with dissolve fast
-   
-   initialiseLevel
-   startGame
+   goStartLevel
    
 end launchLevel
 
@@ -1639,9 +1720,3 @@ on hideInGameControlsOverlay
    send "hideOverlay" to me in 120 millisecs
    
 end hideInGameControlsOverlay
-
-on shutdown
-   
-   -- Save level, prefs, score etc
-   
-end shutdown
