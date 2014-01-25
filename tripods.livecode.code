@@ -1,5 +1,6 @@
 local sStartUpdateTime
 local sUpdateMessageId
+local sGridWidth
 local sCellWidth
 local sFoot1Loc
 local sFoot2Loc
@@ -45,7 +46,6 @@ on preOpenStack
    start using stack "Helper"
    
    setupDataStack
-   restoreLevelCardFromDataStack
    
 end preOpenStack
 
@@ -55,8 +55,10 @@ on openStack
       start using stack "animationEngine"
    end if
    
-   aeSetFrameRate 60 -- Set the Animation Engine frame rate   
-   restoreGame
+   aeSetFrameRate 60 -- Set the Animation Engine frame rate
+   
+   restoreLevelCardFromDataStack 
+   restoreApp
    
 end openStack
 
@@ -83,21 +85,35 @@ end setupDataStack
 -- Makes copy of level card and stores it in data stack
 command saveLevelCardToDataStack
    
-   copy card "level" of this stack to stack gDataStackPath
+   -- Set current level state data as custom properties on level card
+   set the pFoot1Loc of card "level" to sFoot1Loc
+   set the pFoot2Loc of card "level" to sFoot2Loc
+   set the pFoot3Loc of card "level" to sFoot3Loc
+   set the pPivotLoc of card "level" to sPivotLoc
+   set the pFootLanding1Locs of card "level" to sFootLanding1Locs
+   set the pFootLanding2Locs of card "level" to sFootLanding2Locs
+   set the pFootLanding3Locs of card "level" to sFootLanding3Locs
+   set the pMovesCounter of card "level" to sMovesCounter
+   
+   delete the last card of stack gDataStackPath -- Delete any previous data stack
+   copy card "level" of this stack to stack gDataStackPath -- Copy level card to data stack
    
 end saveLevelCardToDataStack
 
 -- Gets copy of level card and moves it to the main stack
 command restoreLevelCardFromDataStack   
    
-   // If we've previously saved level data on exit
+   -- If we've previously saved level data on exit
    if there is a card "level" of stack gDataStackPath then
       
       delete card "level" of this stack // Delete level card
       copy card "level" of stack gDataStackPath to this stack // Replace it with saved level
-      goStartLevel
+      go cd "level"
+      setupLevelProperties
+      reinitialiseLevel
+      startGame
       
-   else
+   else -- If not, go to title card
       
       go card "game_title"
       
@@ -106,7 +122,7 @@ command restoreLevelCardFromDataStack
 end restoreLevelCardFromDataStack
 
 -- Restores game's state on open
-on restoreGame
+on restoreApp
    
    -- Prefs   
    If there is a file "audioprefs.txt" then
@@ -139,7 +155,7 @@ on restoreGame
       
    end if 
    
-end restoreGame
+end restoreApp
 
 -- Controls process when app is closed
 on closeStack
@@ -220,6 +236,10 @@ on goStartLevel
    unlock screen with dissolve fast
    
    initialiseLevel
+   
+   repositionPivot "launch"
+   flashSprite
+   
    startGame
    
 end goStartLevel
@@ -231,6 +251,7 @@ on launchLevel
    
    configureLevelCard   
    positionLevelElements
+   setupLevelProperties
    setupLevelUI
    
    goStartLevel
@@ -314,21 +335,31 @@ on positionLevelElements
    
 end positionLevelElements
 
--- Level UI setup
-on setupLevelUI
+-- Sets up data related to this level
+on setupLevelProperties
    
-   put the width of btn "grid" of cd "level" into tGridWidth -- Get width of grid
    put 500 into sJumpAnimateSpeed -- Speed in ms jump
    put 340 into sPivotAnimateSpeed -- Speed in ms pivot
    
+   put the width of btn "grid" of cd "level" into sGridWidth -- Get width of grid
+   
    -- Get width of each circular 'cell'
-   if tGridWidth is 608 then -- 8x8 grid
-      put the width of btn "grid" of cd "level" / 8 into sCellWidth      
-   else if tGridWidth is 600 then -- 6x6 grid
+   if sGridWidth is 608 then -- 8x8 grid
+      
+      put the width of btn "grid" of cd "level" / 8 into sCellWidth
+           
+   else if sGridWidth is 600 then -- 6x6 grid
+      
       put the width of btn "grid" of cd "level" / 6 into sCellWidth
       put sJumpAnimateSpeed / 8 * 9 into sJumpAnimateSpeed -- Slightly slower speed in ms jump
       put sPivotAnimateSpeed / 8 * 9 into sPivotAsPivotAnimateSpeednimateSpeed -- Slightly slower speed in ms pivot
+      
    end if
+   
+end setupLevelProperties
+
+-- Level UI setup
+on setupLevelUI
    
    put sCellWidth / 2 + the left of btn "grid" of cd "level" into tX -- Work out starting point on X axis
    put sCellWidth / 2 + the top of btn "grid" of cd "level" into tY -- And the Y
@@ -387,8 +418,6 @@ on setupLevelUI
    set the name of it to "pivot"
    set the visible of it to false
    
-   --set the loc of btn "bg" of cd "level" to the loc of this card -- Background image to centre
-   
 end setupLevelUI
 
 -- Initialise level
@@ -420,7 +449,6 @@ on initialiseLevel
    put false into sChangeInFootPos
    put 0 into sMovesCounter -- Reset move counter
    put false into sCollision -- Set collision flag to false
-   --put empty into sFootLandingLocs -- Empty target foot location array
    set the label of button "moves_value" of cd "level" to sMovesCounter -- Amend moves counter
    put false into sCheckingForWin -- Prevents further moves while code checks to see whether use has positioned feet at the target locations
    put false into sLevelWon
@@ -499,6 +527,26 @@ on initialiseLevel
    
 end initialiseLevel
 
+-- Initialise level on game resume
+on reinitialiseLevel
+   
+   -- Put saved custom properties into script variables
+   put the pFoot1Loc of card "level" into sFoot1Loc
+   put the pFoot2Loc of card "level" into sFoot2Loc
+   put the pFoot3Loc of card "level" into sFoot3Loc
+   put the pPivotLoc of card "level" into sPivotLoc
+   put the pFootLanding1Locs of card "level" into sFootLanding1Locs
+   put the pFootLanding2Locs of card "level" into sFootLanding2Locs
+   put the pFootLanding3Locs of card "level" into sFootLanding3Locs
+   put the pMovesCounter of card "level" into sMovesCounter
+
+   -- Set loc of feet just incase there is an issue caused by mid-jump game exit
+   set the loc of btn "foot1" to sFoot1Loc["x"], sFoot1Loc["y"]
+   set the loc of btn "foot2" to sFoot2Loc["x"], sFoot2Loc["y"]
+   set the loc of btn "foot3" to sFoot3Loc["x"], sFoot3Loc["y"]
+   
+end reinitialiseLevel
+
 -- Hide the sprite
 on hideSprite
    
@@ -543,9 +591,10 @@ on flashSprite
 end flashSprite
 
 on test
-   put the long ID of group "elements" of the card "game_title" into tElements
    
-   centerX(tElements)
+   put the pFoot1Loc of the card "level" of the current stack into tLoc
+   --put arrayDecode(tLoc) into tTest
+   answer tLoc["x"]
    
 end test
 
@@ -579,8 +628,6 @@ end animateBackground
    
 on startGame
    
-   repositionPivot "launch"
-   flashSprite
    set the cGameRunning of the current stack to true 
    put the loc of this card into tCardLoc
    
@@ -738,7 +785,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
       put sMovesCounter + 1 into sMovesCounter -- sMovesCounter++
       send "incrMoves" to this card in sJumpAnimateSpeed milliseconds -- Increment moves counter
       
-      if pFootShortName is "foot1" then -- Update script-level loc for relevant foot
+      if pFootShortName is "foot1" then -- Update script-level loc variable for relevant foot
          put pX into sFoot1Loc["x"]
          put pY into sFoot1Loc["y"]
       else if pFootShortName is "foot2" then
@@ -1441,7 +1488,7 @@ end showWinCard
 
 function isAnimating
    
-   -- If the foot is in a mid-transit location, switch on the animation flag
+   -- If the foot is in a mid-transit location, return true
    if sFoot1Loc["x"] <> item 1 of the loc of button "foot1" or sFoot1Loc["y"] <> item 2 of the loc of button "foot1" or sFoot2Loc["x"] <> item 1 of the loc of button "foot2" or sFoot2Loc["y"] <> item 2 of the loc of button "foot2" or sFoot3Loc["x"] <> item 1 of the loc of button "foot3" or sFoot3Loc["y"] <> item 2 of the loc of button "foot3" then
       return true
    else
@@ -1680,9 +1727,11 @@ end positionSets
 -- Position and show in-game controls
 on showControlsOverlay
    
+   put "controls_overlay" into sCurrentAnimation
+   
    set the layer of btn "message_overlay" to top
-   set the loc of group "app_controls" to item 1 of the loc of this card, round(item 2 of the loc of this card / 1.2) -- Place controls 1/3 of the way down the card
    set the layer of group "app_controls" to top
+   set the loc of group "app_controls" to item 1 of the loc of this card, round(item 2 of the loc of this card / 1.2) -- Place controls 1/3 of the way down the card
    
    -- Show message overlay
    set the visible of btn "message_overlay" to true
@@ -1694,6 +1743,12 @@ on showControlsOverlay
    aeUnlockMoves
    
 end showControlsOverlay
+
+on bringOverlayControlsToTop
+   
+   set the layer of group "app_controls" to top
+   
+end bringOverlayControlsToTop
 
 -- Hide message overlay
 on hideOverlay
