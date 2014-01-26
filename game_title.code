@@ -31,7 +31,7 @@ on openCard
       
    end if
    
-   put the top of this card + (the bottom of this card - the bottom of group "elements") + round(the height of the image "tripods_title" / 2) into sTitlePosY // The title should be placed here post-animation
+   put the top of this card + (the bottom of this card - the bottom of group "elements") + round(the height of the image "tripods_title" / 2) + the cGap of the stack "tripods" into sTitlePosY // The title should be placed here post-animation
    
    // Shunt title offscreen
    put 0 - the height of image "tripods_title" into tHideY // Calculate how much the Y needs to decrease to hide the title off screen   

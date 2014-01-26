@@ -372,6 +372,13 @@ on setupLevelUI
    set the name of it to "pivot"
    set the visible of it to false
    
+   put item 4 of the screenRect + (the cGap of the current stack * 2) into tY
+   --answer the screenRect
+   
+   -- Position app controls and score info
+   --put (the height of this card - bottom of button "grid" of card "level") / 2 + bottom of button "grid" of card "level" - round(the cGap of the current stack / 1.8) into tBottom
+   set the loc of the group "footer_controls" of card "level" to item 1 of the loc of this card, tY
+   
 end setupLevelUI
 
 -- Initialise level

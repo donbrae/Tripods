@@ -33,9 +33,15 @@ end resetButtonUI
 ## Displays the sets and levels
 
 on showContent
+   local tTop, tBottom, tPos
+   
+   put the top of group "all_sets" / 2 + the cGap of stack "tripods" into tTop
+   put the height of this card - tTop into tBottom
    
    -- Position title at top of screen
-   set the loc of image "choose_a_level" to item 1 of the loc of this card, (the top of group "all_sets" + the cGap of stack "tripods") / 2
+   set the loc of image "choose_a_level" to item 1 of the loc of this card, tTop
+   
+   set the loc of group "stop_btn" to item 1 of the loc of this card, tBottom
    
    set the cCurrentAnimation of this card to "showcontent" 
    put item 1 of the loc of group "all_sets" into tPos // Get position of sets
