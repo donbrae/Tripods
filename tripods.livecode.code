@@ -38,9 +38,11 @@ on preOpenStack
    set the accelleratedRendering of this stack to true
    
    if the environment is "mobile" then
-      set the fullscreenmode of this stack to "noScale" -- Centres stack on device screen
+      set the fullscreenmode of this stack to "noScale" -- Centres stack on device screen      
       iphoneUseDeviceResolution true, true -- Handles scaling
    end if
+   
+   set the cHiddenTopAndFoot of stack "tripods" to the height of this stack - the cScreenHeight of stack "tripods"
    
    set the defaultFolder to specialFolderPath("documents") -- Where we write files to (good for iOS and Mac OS X)
    start using stack "Helper"
@@ -50,6 +52,9 @@ on preOpenStack
 end preOpenStack
 
 on openStack
+   
+   -- Work out top and bottom gap hidden on shorter devices
+   set the cGap of the stack "tripods" to abs(item 2 of the rect of this stack) / 2
    
    if "animationEngine" is not among the lines of the stacksInUse then
       start using stack "animationEngine"
@@ -62,13 +67,14 @@ on openStack
    
 end openStack
 
--- Sets up hidden stack storing level UI state
+-- Sets up hidden stack storing app state
 command setupDataStack
    local tmp
    
    put specialFolderPath("documents") into gDataStackPath
    put gDataStackPath & "/data.livecode" into gDataStackPath
-         
+   
+   -- If we don't already have a data stack, create one
    if not (there is a file gDataStackPath) then
       
       create stack "gameDataStack"
@@ -121,39 +127,25 @@ command restoreLevelCardFromDataStack
    
 end restoreLevelCardFromDataStack
 
--- Restores game's state on open
+-- Moves custom properties from saved stack and applies to the "tripods" stack
 on restoreApp
-   
-   -- Prefs   
-   If there is a file "audioprefs.txt" then
+
+   if the number of lines in customKeys of the stack gDataStackPath > 0 then
       
-      put URL ("file:audioprefs.txt") into tAudioPrefs -- Get prefs from file
-      split tAudioPrefs by return and ":" -- Split into array   
-      set the customProperties["cAudioPrefs"] of this stack to tAudioPrefs -- Set the cAudioPrefs custom property to value of array
+      -- Custom properties
+      set the cCurrentLevel of the current stack to the cCurrentLevel of stack gDataStackPath
+      set the cCurrentSet of the current stack to the cCurrentSet of stack gDataStackPath
+      set the cTotalPoints of the current stack to the cTotalPoints of stack gDataStackPath
+      set the cAudio of the current stack to the cAudio of stack gDataStackPath
+      set the cFarthestPoint of the current stack to the cFarthestPoint of stack gDataStackPath
       
-   end if
-   
-   -- State
-   If there is a file "state.txt" then
+      -- High scores
+      set the customProperties["cHighScores"] of this stack to the customProperties["cHighScores"] of stack gDataStackPath
       
-      put URL ("file:state.txt") into tState -- Get state-related custom properties from file
-      split tState by return and ":" -- Split into array
-      
-      -- Cycle through array and apply each line as a stack custom property
-      repeat for each line tKey in the keys of tState         
-         set the tKey of the current stack to tState[tKey]
-      end repeat
+      -- Audio prefs
+      set the customProperties["cAudioPrefs"] of this stack to the customProperties["cAudioPrefs"] of stack gDataStackPath
       
    end if
-   
-   -- High scores
-   if there is a file "highscores.txt" then    
-      
-      put URL ("file:highscores.txt") into tHighScores -- Get text file   
-      split tHighScores by return and ":" -- Split into array   
-      set the customProperties["cHighScores"] of this stack to tHighScores -- Set the array to value of cHighScores custom property
-      
-   end if 
    
 end restoreApp
 
@@ -161,8 +153,6 @@ end restoreApp
 on closeStack
    
    saveState
-   saveAudioPrefs
-   saveHighScores
    
    // If we close the app during a game
    if the cGameRunning of the current stack is true then
@@ -171,7 +161,7 @@ on closeStack
       
    else 
       
-      delete card "level" of stack gDataStackPath // Otherwise delete any level card from the data stack
+      delete the last card of stack gDataStackPath // Otherwise delete any level card from the data stack
       
    end if
    
@@ -179,55 +169,19 @@ on closeStack
    
 end closeStack
 
--- Controls process when app is closed
---on closeStack
-
---   saveState
---   saveAudioPrefs
---   saveHighScores
-
---end closeStack
-
--- Saves game's state when app is closed
+-- Saves game's state to separate stack when app is closed
 on saveState
    
-   put "cCurrentLevel:" & the cCurrentLevel of this stack & return after tStateArray -- Current level
-   put "cCurrentSet:" & the cCurrentSet of this stack & return after tStateArray -- Current set
-   put "cTotalPoints:" & the cTotalPoints of this stack & return after tStateArray -- Total points
-   put "cAudio:" & the cAudio of this stack & return after tStateArray -- Audio on/off
-   put "cFarthestPoint:" & the cFarthestPoint of this stack after tStateArray -- Progress
+   set the cCurrentLevel of stack gDataStackPath to the cCurrentLevel of the current stack
+   set the cCurrentSet of stack gDataStackPath to the cCurrentSet of the current stack
+   set the cTotalPoints of stack gDataStackPath to the cTotalPoints of the current stack
+   set the cAudio of stack gDataStackPath to the cAudio of the current stack
+   set the cFarthestPoint of stack gDataStackPath to the cFarthestPoint of the current stack
    
-   put tStateArray into URL ("file:state.txt") -- Save to file
+   set the customProperties["cAudioPrefs"] of stack gDataStackPath to the customProperties["cAudioPrefs"] of this stack
+   set the customProperties["cHighScores"] of stack gDataStackPath to the customProperties["cHighScores"] of this stack
    
 end saveState
-
--- Saves game's audio preferences when app is closed
-on saveAudioPrefs
-   
-   put the customProperties["cAudioPrefs"] of the current stack into tAudioPrefs -- Get preferences custom property as an array
-   
-   -- Cycle through the array and format for saving to file
-   repeat for each line tKey in the keys of tAudioPrefs
-      put tKey & ":" & tAudioPrefs[tKey] & return after tArrayContents
-   end repeat
-   
-   put tArrayContents into URL ("file:audioprefs.txt") -- Save to file
-   
-end saveAudioPrefs
-
--- Saves game's high scores when app is closed
-on saveHighScores
-   
-   put the customProperties["cHighScores"] of the current stack into tHighScores -- Get high scores custom property as an array
-   
-   -- Cycle through the array and format for saving to file
-   repeat for each line tKey in the keys of tHighScores
-      put tKey & ":" & tHighScores[tKey] & return after tArrayContents
-   end repeat
-   
-   put tArrayContents into URL ("file:highscores.txt") -- Save to file
-   
-end saveHighScores
 
 on goStartLevel
    

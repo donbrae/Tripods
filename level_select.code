@@ -34,6 +34,9 @@ end resetButtonUI
 
 on showContent
    
+   -- Position title at top of screen
+   set the loc of image "choose_a_level" to item 1 of the loc of this card, (the top of group "all_sets" + the cGap of stack "tripods") / 2
+   
    set the cCurrentAnimation of this card to "showcontent" 
    put item 1 of the loc of group "all_sets" into tPos // Get position of sets
    set the left of group "all_sets" to item 1 of the loc of this card // Put just offscreen to the right
