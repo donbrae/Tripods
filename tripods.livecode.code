@@ -53,8 +53,15 @@ end preOpenStack
 
 on openStack
    
-   -- Work out top and bottom gap hidden on shorter devices
-   set the cGap of the stack "tripods" to abs(item 2 of the rect of this stack) / 2
+   -- For IDE
+   if the environment is not "mobile" then
+      
+      --set the height of the current stack to 1136
+      --set the top of the current stack to 620
+      
+   end if
+   
+   getScreenDimensions
    
    if "animationEngine" is not among the lines of the stacksInUse then
       start using stack "animationEngine"
@@ -66,6 +73,26 @@ on openStack
    restoreApp
    
 end openStack
+
+-- Calculates screen dimensions and the top and bottom Y coords of device's screen
+command getScreenDimensions
+   local tGap
+   
+   -- Work out top and bottom gap hidden on shorter devices
+   put abs(item 2 of the rect of this stack) / 2 into tGap
+   
+   set the cGap of the stack "tripods" to tGap
+   
+   if the environment is "mobile" then
+      
+      -- Get top and bottom Y coordinates
+      
+      set the cScreenTop of the current stack to tGap * 2
+      set the cScreenBottom of the current stack to item 4 of the screenRect + (tGap * 2) 
+      
+   end if
+   
+end getScreenDimensions
 
 -- Sets up hidden stack storing app state
 command setupDataStack
@@ -372,12 +399,11 @@ on setupLevelUI
    set the name of it to "pivot"
    set the visible of it to false
    
-   put item 4 of the screenRect + (the cGap of the current stack * 2) into tY
-   --answer the screenRect
-   
    -- Position app controls and score info
-   --put (the height of this card - bottom of button "grid" of card "level") / 2 + bottom of button "grid" of card "level" - round(the cGap of the current stack / 1.8) into tBottom
-   set the loc of the group "footer_controls" of card "level" to item 1 of the loc of this card, tY
+   put the cScreenBottom of the current stack - (the height of the group "footer_controls" of card "level" / 2) into tControlsY
+   put the cScreenTop of the current stack + (the height of the group "score" of card "level" / 2) into tScoreY
+   set the loc of group "footer_controls" of card "level" to item 1 of the loc of this card, tControlsY
+   set the loc of group "score" of card "level" to (the width of group "score" of card "level" / 2) + 8, tScoreY
    
 end setupLevelUI
 
