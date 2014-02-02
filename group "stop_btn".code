@@ -16,7 +16,7 @@ on mouseUp
       set the name of it to "title_bg"
       set the visible of it to false -- Hide it
       set the loc of it to the loc of this card -- Set to centre
-      
+
       hideControlsInOverlay
       aeFadeIn the long id of btn "title_bg", 350
       

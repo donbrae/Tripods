@@ -570,9 +570,7 @@ end flashSprite
 
 on test
    
-   repeat with tCard = 1 to the number of cards in stack gDataStackPath         
-      if the name of the card tCard of stack gDataStackPath is "level" then delete card tCard of stack gDataStackPath         
-   end repeat
+   
    
 end test
 
@@ -691,9 +689,11 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
       
       send "animateFoot pFootShortName, 20" to me in sJumpAnimateSpeed + 400 millisecs -- Start foot 'jump' animation
       send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, inOut" to btn pFootShortName in sJumpAnimateSpeed + 400 millisecs -- Call jumpBack() after a short interval
-      --send "showPivot 150" to me in sJumpAnimateSpeed + 700 millisecs -- Fade pivot back in
+      send "repositionPivot" to me in sJumpAnimateSpeed + 1250 millisecs -- Reposition the pivot *************
       
    else if tBoundaryHit then -- If boundary will be hit
+      
+      put "jumpFail" into sCurrentAnimation
       
       if pDirection is "N" then
          put item 1 of the loc of btn pFootShortName into pX -- X pos will be the same
@@ -745,7 +745,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
       
       -- Set timer for jump back to where the foot was
       send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, bounce" to me in (tJumpAnimateSpeed + 100) milliseconds -- Jump back after short wait
-      --send "showPivot 150" to me in (sJumpAnimateSpeed + 250) millisecs -- Show the pivot
+      send "repositionPivot" to me in sJumpAnimateSpeed + 1250 millisecs -- Reposition the pivot **************
       
    end if
    
@@ -830,7 +830,7 @@ end animateFoot
 
 on repositionPivot pEvent
    
-   if the cGameRunning of the current stack is true or pEvent is "launch" or sLevelWon then -- If during gameplay, or as we're just starting the game, or we've just won a level
+   if not isAnimating() and the cGameRunning of the current stack is true or pEvent is "launch" or sLevelWon then -- If during gameplay, or as we're just starting the game, or we've just won a level
       
       -- Get angles of foot one to other two feet
       put the loc of btn "foot1" into tFoot1
@@ -947,14 +947,16 @@ on repositionPivot pEvent
       
       put tPivotX,tPivotY into sPivotLoc
       
-      if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "pivot" then -- If the pivot needs to change location after a pivot move
-         put the long ID of btn "pivot" into tPivot
-         send "aeMoveTo tPivot, item 1 of sPivotLoc, item 2 of sPivotLoc, 200" to me in 1 millisecs
-      else if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "jump" then -- If the pivot needs to change location after a jump
-         set the loc of btn "pivot" to sPivotLoc -- Set new loc right away
-      else if the cGameRunning of the current stack is false then -- On card load, before game is running
-         set the loc of btn "pivot" to sPivotLoc  
-      end if
+      set the loc of btn "pivot" to sPivotLoc
+      
+      --      if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "pivot" then -- If the pivot needs to change location after a pivot move
+      --         put the long ID of btn "pivot" into tPivot
+      --         send "aeMoveTo tPivot, item 1 of sPivotLoc, item 2 of sPivotLoc, 200" to me in 1 millisecs
+      --      else if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "jump" then -- If the pivot needs to change location after a jump
+      --         set the loc of btn "pivot" to sPivotLoc -- Set new loc right away
+      --      else if the cGameRunning of the current stack is false then -- On card load, before game is running
+      --         set the loc of btn "pivot" to sPivotLoc  
+      --      end if
       
       set the layer of btn "pivot" of cd "level" to top -- Make sure pivot is on top (important after it's been "demoted" during jump)
       
@@ -1465,13 +1467,21 @@ on showWinCard
 end showWinCard
 
 function isAnimating
+   local tIsAnimating
    
-   -- If the foot is in a mid-transit location, return true
+   put false into tIsAnimating
+   
+   -- If the foot is in a mid-transit location, amend flag
    if sFoot1Loc["x"] <> item 1 of the loc of button "foot1" or sFoot1Loc["y"] <> item 2 of the loc of button "foot1" or sFoot2Loc["x"] <> item 1 of the loc of button "foot2" or sFoot2Loc["y"] <> item 2 of the loc of button "foot2" or sFoot3Loc["x"] <> item 1 of the loc of button "foot3" or sFoot3Loc["y"] <> item 2 of the loc of button "foot3" then
-      return true
-   else
-      return false
+      put true into tIsAnimating
    end if
+   
+   -- If the pivot is in mid-transit, amend flag
+   --   if sPivotLoc is not the loc of btn "pivot" then 
+   --      put true into tIsAnimating
+   --   end if 
+   
+   return tIsAnimating
    
 end isAnimating
 
