@@ -141,7 +141,7 @@ on touchmove
    
 end touchmove
 
-## When user lifts fingger
+## When user lifts finger
 
 on touchEnd
    
@@ -155,16 +155,30 @@ on touchEnd
       
       set the cCurrentLevel of this stack to the cLevelButtonTouched of this card // Amend current level to the one stored in the tapped button
       
-      // Start the level
-      lock screen for visual effect
-      go cd "start_level"
-      unlock screen with push up fast
+      -- Hide UI elements
+      aeLockMoves
+      aeFadeOut the long id of image "choose_a_level", 300 // Fade out title
+      aeFadeOut the long id of group "stop_btn", 300 // Fade in stop button
+      aeFadeOut the long id of group "all_sets", 300 // Fade in
+      aeMoveTo the long id of group "all_sets", 0, item 2 of the loc of this card, 300 // Slide out   
+      aeUnlockMoves
+      
+      send "startLevel" to me in 300 millisecs
       
    end if
    
    put false into sStopRespondingToTouchMoves // We want to let our touchMove function respond to user swipes (providing there is not animation taking place)
    
 end touchEnd
+
+-- Go start the level
+on startLevel
+   
+   lock screen for visual effect
+   go cd "start_level"
+   unlock screen with dissolve very fast
+   
+end startLevel
 
 ## Called by AE when an animation has completed
 
