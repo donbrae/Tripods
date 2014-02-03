@@ -689,7 +689,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
       
       send "animateFoot pFootShortName, 20" to me in sJumpAnimateSpeed + 400 millisecs -- Start foot 'jump' animation
       send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, inOut" to btn pFootShortName in sJumpAnimateSpeed + 400 millisecs -- Call jumpBack() after a short interval
-      send "repositionPivot" to me in sJumpAnimateSpeed + 1250 millisecs -- Reposition the pivot *************
+      send "repositionPivot" to me in sJumpAnimateSpeed + 1250 millisecs -- Reposition the pivot foot has bounced back
       
    else if tBoundaryHit then -- If boundary will be hit
       
@@ -745,7 +745,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
       
       -- Set timer for jump back to where the foot was
       send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, bounce" to me in (tJumpAnimateSpeed + 100) milliseconds -- Jump back after short wait
-      send "repositionPivot" to me in sJumpAnimateSpeed + 1250 millisecs -- Reposition the pivot **************
+      send "repositionPivot" to me in sJumpAnimateSpeed + 770 millisecs -- Reposition the pivot after bounce back
       
    end if
    
