@@ -269,7 +269,15 @@ on configureLevelCard
    
    -- If there's a high score for this level, add it to the "Best" field
    put item 1 of the cHighScores[tCurrentLevel] of the current stack into tHighScore
-   if tHighScore is not empty then set the label of btn "previous_best_value" of cd "level" to tHighScore
+   if tHighScore is not empty then      
+      put "Best: " & tHighScore into fld "previous_best" of cd "level"
+   else
+      set the visible of fld "previous_best" of cd "level" to false
+   end if
+   
+   -- Add set and level info
+   put "Set " & the cCurrentSet of the current stack into field "progress_set" of cd "level"
+   put "Level " & the cCurrentLevel of the current stack into field "progress_level" of cd "level"
    
    -- Amend audio toggle button
    if the cAudio of the current stack is true then set the blendLevel of graphic "line" of group "audio_toggle_btn" of cd "level" to 100
@@ -282,17 +290,16 @@ on positionLevelElements
    set the loc of btn "grid" of cd "level" to the loc of this card -- Center game grid
    put the width of this card - the right of btn "grid" of cd "level" into tMargin
    
-   -- Position moves counter
-   set the left of fld "moves" of cd "level" to tMargin - 6 -- -6 because text adds its own margins
-   set the left of btn "moves_value" of cd "level" to the right of fld "moves" of the cd "level"
-   set the top of fld "moves" of cd "level" to tMargin - 12
-   set the top of btn "moves_value" of cd "level" to tMargin - 12
-   
-   -- Position "Previous Best" fields
-   set the left of fld "previous_best" of cd "level" to tMargin - 6
-   set the left of btn "previous_best_value" of cd "level" to the right of fld "previous_best" of cd "level"   
-   set the top of fld "previous_best" of cd "level" to the bottom of btn "moves_value" of cd "level" - 6
-   set the top of btn "previous_best_value" of cd "level" to the bottom of btn "moves_value" of cd "level" - 6
+   -- Position "Best" and "Moves" fields
+   if the visible of fld "previous_best" of cd "level" then      
+      set the left of fld "previous_best" of cd "level" to tMargin - 6
+      set the bottom of fld "previous_best" of cd "level" to the top of btn "grid" of cd "level"
+      set the bottom of fld "moves" of cd "level" to the top of fld "previous_best" of cd "level" + 10
+   else
+      set the bottom of fld "moves" of cd "level" to the top of btn "grid" of cd "level" - 11
+   end if
+
+   set the left of fld "moves" of cd "level" to tMargin - 6 -- Moves field always visible   
    
    -- Position "Exit" button   
    set the bottom of group "footer_controls" of cd "level" to the height of this cd - tMargin
@@ -394,7 +401,11 @@ on setupLevelUI
    put the cScreenBottom of the current stack - (the height of the group "footer_controls" of card "level" / 2) into tControlsY
    put the cScreenTop of the current stack + (the height of the group "score" of card "level" / 2) into tScoreY
    set the loc of group "footer_controls" of card "level" to item 1 of the loc of this card, tControlsY
-   set the loc of group "score" of card "level" to (the width of group "score" of card "level" / 2) + 8, tScoreY
+   --set the loc of group "score" of card "level" to (the width of group "score" of card "level" / 2) + 8, tScoreY
+   
+   set the loc of field "progress_set" of card "level" to item 1 of the loc of this card, the cScreenTop of the current stack + (the height of the field "progress_set" of card "level" / 1.7)
+   set the loc of field "progress_level" of card "level" to the loc of this card
+   set the top of field "progress_level" of card "level" to the bottom of field "progress_set" of card "level"
    
 end setupLevelUI
 
@@ -427,7 +438,7 @@ on initialiseLevel
    put false into sChangeInFootPos
    put 0 into sMovesCounter -- Reset move counter
    put false into sCollision -- Set collision flag to false
-   set the label of button "moves_value" of cd "level" to sMovesCounter -- Amend moves counter
+   put "Moves: " & sMovesCounter into fld "moves" of cd "level" -- Amend moves counter
    put false into sCheckingForWin -- Prevents further moves while code checks to see whether use has positioned feet at the target locations
    put false into sLevelWon
    put empty into sCurrentAnimation
@@ -635,7 +646,7 @@ end goTimer
 
 on incrMoves
    
-   set the label of button "moves_value" to sMovesCounter -- Amend moves counter
+   put "Moves: " & sMovesCounter into fld "moves" -- Amend moves counter
    set the cTotalMovesRemaining of the current stack to the cTotalMovesRemaining of the current stack - 1 -- Total moves--
    
 end incrMoves
@@ -1341,7 +1352,12 @@ on levelWin
    stopGame
    flashSprite
    
-   aeFadeOut the long id of group "footer_controls", 250 -- Fade out stop button
+   -- Fade out UI elements
+   aeLockMoves
+   aeFadeOut the long id of group "footer_controls", 250
+   aeFadeOut the long id of fld "progress_set", 250
+   aeFadeOut the long id of fld "progress_level", 250
+   aeUnlockMoves
       
    if sCurrentAnimation is "pivot" then
       
