@@ -212,6 +212,14 @@ on goStartLevel
    repositionPivot "launch"
    flashSprite
    
+   -- If this level has a tutorial, and the user hasn't already tried to make his first move, show first popover (currently just a test)
+   if hasTutorial() and the cUserInput of this stack is false then
+      put "test_popover" into tName
+      put "Tap" into tMessage
+      put the long id of btn "pivot" into tObj
+      send "showPopover tName, tMessage, tObj" to me in 1250 millisecs
+   end if
+   
    startGame
    
 end goStartLevel
@@ -321,6 +329,7 @@ on setupLevelProperties
    put 340 into sPivotAnimateSpeed -- Speed in ms pivot
    
    put the width of btn "grid" of cd "level" into sGridWidth -- Get width of grid
+   set the cUserInput of this stack to false -- Flag used to track whether user has made his first move in the level
    
    -- Get width of each circular 'cell'
    if sGridWidth is 608 then -- 8x8 grid
@@ -581,6 +590,9 @@ end flashSprite
 
 on test
    
+   put the customProperties["set1_level1"] of this stack into tLevelProperties // Get level's custom properties
+   put the number of items in tLevelProperties[cSolution] into tLevelPoints
+   answer tLevelPoints
    
    
 end test
@@ -652,6 +664,8 @@ on incrMoves
 end incrMoves
 
 on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
+   
+   deleteTutorialPopovers
    
    put false into tBoundaryHit
    
@@ -979,6 +993,8 @@ on jump pFootLoc, pFootShortName
    
    if not sCheckingForWin and not isAnimating() then
       
+      set the cUserInput of this stack to true
+      
       resetShowFeet
       
       put "jump" into sCurrentAnimation
@@ -1071,7 +1087,12 @@ on resetShowFeet
 end resetShowFeet
 
 on pivot
+   
+   deleteTutorialPopovers
+   
    if not sCheckingForWin and not isAnimating() then -- If no element is currently being animated, and we're not checking for a win
+      
+      set the cUserInput of this stack to true
       
       resetShowFeet
       
@@ -1222,7 +1243,7 @@ on pivot
          
          put 0 into sFootPivotCount -- Register than no feet have yet moved
          put the long ID of btn "pivot" into tPivot
-
+         
          aeLockMoves
          aeMoveTo the long id of btn "foot1",tFoot1x,tFoot1y,sPivotAnimateSpeed,"overshoot"
          aeMoveTo the long id of btn "foot2",tFoot2x,tFoot2y,sPivotAnimateSpeed,"overshoot"
@@ -1493,9 +1514,9 @@ function isAnimating
    end if
    
    -- If the pivot is in mid-transit, amend flag
-   --   if sPivotLoc is not the loc of btn "pivot" then 
+   --   if sCurrentAnimation is "pivot" then 
    --      put true into tIsAnimating
-   --   end if 
+   --   end if
    
    return tIsAnimating
    
