@@ -183,8 +183,6 @@ on closeStack
    
    --   end if
    
-   save stack gDataStackPath
-   
 end closeStack
 
 -- Saves game's state to separate stack when app is closed
@@ -198,6 +196,8 @@ on saveState
    
    set the customProperties["cAudioPrefs"] of stack gDataStackPath to the customProperties["cAudioPrefs"] of this stack
    set the customProperties["cHighScores"] of stack gDataStackPath to the customProperties["cHighScores"] of this stack
+   
+   save stack gDataStackPath
    
 end saveState
 
@@ -1432,6 +1432,7 @@ on levelWin
    set the cLevelMoves of cd "level_win" to sMovesCounter -- Store moves counter in win card custom property
    
    updateProgress tCurrentSet
+   saveState
    
 end levelWin
 
