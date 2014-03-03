@@ -109,13 +109,16 @@ end setIDECardHeight
 --    pMessage: the text you want to appear in the popover
 -- pObj: the existing object you want popover to point to 
 command showPopover pName, pMessage, pObj
-   local tPopoverPadding, tButtonPadding, tAnimOffset, tObjectType, tIconId, tEndX
+   local tPopoverPadding, tButtonPadding, tAnimOffset, tAnimSpeed, tObjectType, tIconId, tEndX
    
    put 20 into tPopoverPadding
    put 0 into tButtonPadding
-   put 10 into tAnimOffset
+   put 30 into tAnimOffset
+   put 450 into tAnimSpeed
    
    if not isAnimating() then
+      
+      set the cPopoverAnimating of this stack to true -- Flag that popover is animating
       
       copy group "popover" of cd "elements" to this cd -- Clone popover
       set the name of it to pName
@@ -143,7 +146,7 @@ command showPopover pName, pMessage, pObj
       set the loc of group pName to tEndX - tAnimOffset, item 2 of the loc of pObj -- Offset for move animation   
       
       -- If the popover extends beyond the right of the screen, move it to the left of the pObj
-      if the right of group pName > the right of this card then
+      if the right of group pName + tAnimOffset > the right of this card then
          
          set the angle of graphic "point" of group pName to 0 -- Face pointer to right
          set the left of graphic "point" of group pName to the right of graphic "shape" of group pName - 8 -- Position pointer to right of popover
@@ -155,9 +158,12 @@ command showPopover pName, pMessage, pObj
       
       set the layer of group pName to top
       aeLockMoves
-      aeMoveTo the long id of group pName,tEndX,item 2 of the loc of group pName,500,"out" -- Perform move animation
+      aeMoveTo the long id of group pName,tEndX,item 2 of the loc of group pName,tAnimSpeed,"out" -- Perform move animation
       aeFadeIn the long id of group pName, 200 -- Fade in popover
       aeUnlockMoves
+      
+      send "set the cPopoverAnimating of this stack to false" to me in tAnimSpeed millisecs -- Flag that popover is not animating
+      
    end if
    
 end showPopover
@@ -166,7 +172,7 @@ function hasTutorial
    
    put "set" & the cCurrentSet of stack "tripods" & "_level" & the cCurrentLevel of stack "tripods" into tCurrentLevel -- Get name of current level's custom property
    put the customProperties[tCurrentLevel] of this stack into tLevelProperties -- Get level's custom properties
-   put the number of items in tLevelProperties[cTutorial] into tLevelTutorial -- Get any tutorial
+   put the number of items in tLevelProperties[cTutorial] into tLevelTutorial -- Get level's tutorial custom property
    
    -- If there's a tutorial for this level, delete any popovers
    if tLevelTutorial is not "0" then
@@ -185,18 +191,16 @@ command deleteTutorialPopovers
    if hasTutorial() then
       
       put 50 into tFadeSpeed
-      put 10 into tTimeOffset -- Time in millisecs after fadeout at which element is deleted
-      put 1 into tPopoverCount
+      put 250 into tTimeOffset -- Time in millisecs after fadeout at which element is deleted
       
       put the number of controls of this cd into tCount
       
       repeat with x = tCount down to 1
          if the cPopover of control x is "true" then
-            if the visible of control x is true then
+            if the visible of control x is true and not isAnimating() then
                aeFadeOut the long id of control x of this cd, tFadeSpeed
             end if         
-            --send "delete the long id of control x of this cd" to this cd in (tFadeSpeed + tTimeOffset) * tPopoverCount millisecs -- This is causing bug
-            put tPopoverCount + 1 into tPopoverCount
+            send "delete the long id of control x of this cd" to this cd in tTimeOffset millisecs -- Offset to avoid causing error in AE
          end if
       end repeat
    end if

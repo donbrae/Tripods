@@ -142,7 +142,13 @@ on showRating
    
 end showRating
 
+## Position and show star rating and high-score message
 on openCard
+   
+   put the cScreenTop of the current stack + (the height of group "star_rating") into tStarRatingY
+   set the loc of group "star_rating" to item 1 of the loc of this card, tStarRatingY
+   
+   set the top of field "high_score_message" to the bottom of group "star_rating" + 10
    
    send "showRating" to me in 150 millisecs
    
@@ -169,7 +175,12 @@ on transition pBtn1, pBtn2, pSpeed
    
 end transition
 
-## Fade in navigation
+## Position and fade in navigation
 on showNav
+   local tWinNavY
+   
+   put the cScreenBottom of the current stack - (the height of group "win_nav") into tWinNavY
+   set the loc of group "win_nav" to item 1 of the loc of this card, tWinNavY
+   
    aeFadeIn the long id of grp "win_nav", 500
 end showNav

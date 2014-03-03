@@ -19,6 +19,7 @@ local sLevelWon
 local sCheckingForWin
 
 local sMovesCounter
+local sUIObjectTouchedBeforeMostRecentSuccessfulMove
 
 global gTouchStartLoc
 global gTouchedFoot
@@ -167,24 +168,6 @@ on restoreApp
    
 end restoreApp
 
--- Controls process when app is closed
-on closeStack
-   
-   saveState
-   
-   // If we close the app during a game
-   --   if the cGameRunning of the current stack is true then
-   
-   --      saveLevelCardToDataStack // Save the card to the data stack
-   
-   --   else 
-   --      // Otherwise delete any level card from the data stack
-   --      if there is a card "level" of stack gDataStackPath then delete card "level" of stack gDataStackPath
-   
-   --   end if
-   
-end closeStack
-
 -- Saves game's state to separate stack when app is closed
 on saveState
    
@@ -211,23 +194,41 @@ on goStartLevel
    
    repositionPivot "launch"
    flashSprite
-   
-   -- If this level has a tutorial, and the user hasn't already tried to make his first move, show first popover (currently just a test)
-   if hasTutorial() and the cUserInput of this stack is false then
-      put "test_popover" into tName
-      put "Tap" into tMessage
-      put the long id of btn "pivot" into tObj
-      send "showPopover tName, tMessage, tObj" to me in 1250 millisecs
-   end if
+      
+   showTutorialPopover 1250
    
    startGame
    
 end goStartLevel
 
+-- If this level has a tutorial, and the user hasn't already tried to make a move, show first popover
+on showTutorialPopover pDelay
+   local tName, tUIObject, tMessage, tObj
+   
+   if hasTutorial() and the cTutorialToggle of this stack is true and the cUserInput of this stack is false and the number of items in sLevelProperties["cTutorial"] > 0 then
+      put "tutorial_popover" into tName
+      put item 1 of sLevelProperties["cTutorial"] into tUIObject // Get first item of tutorial string
+      
+      // Work out popover text
+      if tUIObject is not "pivot" then
+         put "Swipe" into tMessage
+      else
+         put "Tap" into tMessage
+      end if
+      
+      put the long id of btn tUIObject into tObj
+      send "showPopover tName, tMessage, tObj" to me in pDelay millisecs
+   end if
+   
+end showTutorialPopover
+
 -- Level launch controller
 on launchLevel
 
    stopGame -- Defensive call to stopGame
+   
+   set the cTutorialToggle of this stack to true -- For the moment, we'll always show a level's tutorial if it has one
+   set the cPopoverAnimating of this stack to false -- Reset popover animation flag
    
    configureLevelCard   
    positionLevelElements
@@ -329,7 +330,7 @@ on setupLevelProperties
    put 340 into sPivotAnimateSpeed -- Speed in ms pivot
    
    put the width of btn "grid" of cd "level" into sGridWidth -- Get width of grid
-   set the cUserInput of this stack to false -- Flag used to track whether user has made his first move in the level
+   set the cUserInput of this stack to false -- Flag used to track whether user has made his next move in the level
    
    -- Get width of each circular 'cell'
    if sGridWidth is 608 then -- 8x8 grid
@@ -661,7 +662,30 @@ on incrMoves
    put "Moves: " & sMovesCounter into fld "moves" -- Amend moves counter
    set the cTotalMovesRemaining of the current stack to the cTotalMovesRemaining of the current stack - 1 -- Total moves--
    
+   checkTutorialProgress
+   
 end incrMoves
+
+-- Checks, after each move, whether user is following tutorial. If not, the rest of the tutorial is dismissed
+on checkTutorialProgress
+   
+   if the cTutorialToggle of the current stack is true then      
+      local tCurrentTutorialObject
+      
+      put item 1 of sLevelProperties["cTutorial"] into tCurrentTutorialObject -- Get the current step from the tutorial "array"
+      
+      if tCurrentTutorialObject is not sUIObjectTouchedBeforeMostRecentSuccessfulMove then -- If user hasn't followed this step in tutorial
+         set the cTutorialToggle of the current stack to false
+      else
+         delete item 1 of sLevelProperties["cTutorial"] -- If he has, delete this step from tutoral "array"
+      end if
+      
+      set the cUserInput of this stack to false -- Flag that we are awaiting the user's next move
+      showTutorialPopover 400 -- Show next popover in tutorial
+      
+   end if
+   
+end checkTutorialProgress
 
 on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
    
@@ -785,6 +809,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
    
    if not tBoundaryHit and not tJumpCollide then -- If a boundary hasn't been hit, or the foot hasn't jumped onto a block
       
+      put pFootShortName into sUIObjectTouchedBeforeMostRecentSuccessfulMove -- Take a note so we can check tutorial progress
       put sMovesCounter + 1 into sMovesCounter -- sMovesCounter++
       send "incrMoves" to this card in sJumpAnimateSpeed milliseconds -- Increment moves counter
       
@@ -1239,6 +1264,7 @@ on pivot
          
       else if the visible of btn "pivot" then -- If no collision and pivot is visible, we can go ahead and pivot
          
+         put "pivot" into sUIObjectTouchedBeforeMostRecentSuccessfulMove -- Take a note so we can check tutorial progress
          put sMovesCounter + 1 into sMovesCounter -- sMovesCounter++
          
          put 0 into sFootPivotCount -- Register than no feet have yet moved
@@ -1379,12 +1405,12 @@ on levelWin
    aeFadeOut the long id of fld "progress_set", 250
    aeFadeOut the long id of fld "progress_level", 250
    aeUnlockMoves
-      
+   
    if sCurrentAnimation is "pivot" then
       
       put "pivot" into tPivot   
       send "aeFadeOut the long id of btn tPivot, 100" to me in 250 millisecs -- Fade out pivot if the winning move was a pivot, with a short delay to wait for pivot (just because it looks nicer)
-   
+      
    end if
    
    put "You've won the level!" into tWinMsg
@@ -1509,7 +1535,7 @@ function isAnimating
    
    put false into tIsAnimating
    
-   -- If the foot is in a mid-transit location, amend flag
+   -- If a foot is in a mid-transit location, amend flag
    if sFoot1Loc["x"] <> item 1 of the loc of button "foot1" or sFoot1Loc["y"] <> item 2 of the loc of button "foot1" or sFoot2Loc["x"] <> item 1 of the loc of button "foot2" or sFoot2Loc["y"] <> item 2 of the loc of button "foot2" or sFoot3Loc["x"] <> item 1 of the loc of button "foot3" or sFoot3Loc["y"] <> item 2 of the loc of button "foot3" then
       put true into tIsAnimating
    end if
