@@ -151,7 +151,6 @@ command showPopover pName, pMessage, pObj
          set the angle of graphic "point" of group pName to 0 -- Face pointer to right
          set the left of graphic "point" of group pName to the right of graphic "shape" of group pName - 8 -- Position pointer to right of popover
          set the right of group pName to the left of pObj + tButtonPadding + tAnimOffset -- Position popover to the left of the pObj
-         --put round(the left of pObj - (the width of group pName / 2)) - round(tAnimOffset / 2) into tEndx -- Get new end point
          put item 1 of the loc of group pName - tAnimOffset into tEndx -- Get new end point
          
       end if
@@ -161,8 +160,6 @@ command showPopover pName, pMessage, pObj
       aeMoveTo the long id of group pName,tEndX,item 2 of the loc of group pName,tAnimSpeed,"out" -- Perform move animation
       aeFadeIn the long id of group pName, 200 -- Fade in popover
       aeUnlockMoves
-      
-      send "set the cPopoverAnimating of this stack to false" to me in tAnimSpeed millisecs -- Flag that popover is not animating *** THIS MESSAGE DOENS"T SEEM TO BE BEING SENT IN SIMULATOR ***
       
    end if
    
