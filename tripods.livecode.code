@@ -19,7 +19,7 @@ local sLevelWon
 local sCheckingForWin
 
 local sMovesCounter
-local sUIObjectTouchedBeforeMostRecentSuccessfulMove
+local sUIObjectTouched
 
 global gTouchStartLoc
 global gTouchedFoot
@@ -205,7 +205,7 @@ end goStartLevel
 on showTutorialPopover pDelay
    local tName, tUIObject, tMessage, tObj
    
-   if hasTutorial() and the cTutorialToggle of this stack is true and the cUserInput of this stack is false and the number of items in sLevelProperties["cTutorial"] > 0 then
+   if hasTutorial() and the cTutorialToggle of this stack is true and the number of items in sLevelProperties["cTutorial"] > 0 then
       put "tutorial_popover" into tName
       put item 1 of sLevelProperties["cTutorial"] into tUIObject // Get first item of tutorial string
       
@@ -218,17 +218,19 @@ on showTutorialPopover pDelay
       
       put the long id of btn tUIObject into tObj
       send "showPopover tName, tMessage, tObj" to me in pDelay millisecs
+      put "showTutorialPopover" into msg box
    end if
    
 end showTutorialPopover
 
 -- Level launch controller
 on launchLevel
-
+   
    stopGame -- Defensive call to stopGame
    
    set the cTutorialToggle of this stack to true -- For the moment, we'll always show a level's tutorial if it has one
    set the cPopoverAnimating of this stack to false -- Reset popover animation flag
+   put empty into sUIObjectTouched -- Reset move tracker
    
    configureLevelCard   
    positionLevelElements
@@ -330,7 +332,6 @@ on setupLevelProperties
    put 340 into sPivotAnimateSpeed -- Speed in ms pivot
    
    put the width of btn "grid" of cd "level" into sGridWidth -- Get width of grid
-   set the cUserInput of this stack to false -- Flag used to track whether user has made his next move in the level
    
    -- Get width of each circular 'cell'
    if sGridWidth is 608 then -- 8x8 grid
@@ -674,22 +675,20 @@ on checkTutorialProgress
       
       put item 1 of sLevelProperties["cTutorial"] into tCurrentTutorialObject -- Get the current step from the tutorial "array"
       
-      if tCurrentTutorialObject is not sUIObjectTouchedBeforeMostRecentSuccessfulMove then -- If user hasn't followed this step in tutorial
-         set the cTutorialToggle of the current stack to false
+      if tCurrentTutorialObject is not sUIObjectTouched then -- If the user hasn't followed this step in tutorial
+         set the cTutorialToggle of the current stack to false -- Cancel tutorial
       else
-         delete item 1 of sLevelProperties["cTutorial"] -- If he has, delete this step from tutoral "array"
+         delete item 1 of sLevelProperties["cTutorial"] -- If tutorial is being followed, delete this step from tutoral "array"
+         showTutorialPopover 400 -- Show next popover in tutorial
       end if
-      
-      set the cUserInput of this stack to false -- Flag that we are awaiting the user's next move
-      showTutorialPopover 400 -- Show next popover in tutorial
-      
+
    end if
    
 end checkTutorialProgress
 
 on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
    
-   deleteTutorialPopovers
+   removeTutorialPopovers
    
    put false into tBoundaryHit
    
@@ -809,7 +808,7 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
    
    if not tBoundaryHit and not tJumpCollide then -- If a boundary hasn't been hit, or the foot hasn't jumped onto a block
       
-      put pFootShortName into sUIObjectTouchedBeforeMostRecentSuccessfulMove -- Take a note so we can check tutorial progress
+      put pFootShortName into sUIObjectTouched -- Take a note so we can check tutorial progress
       put sMovesCounter + 1 into sMovesCounter -- sMovesCounter++
       send "incrMoves" to this card in sJumpAnimateSpeed milliseconds -- Increment moves counter
       
@@ -1016,10 +1015,8 @@ end repositionPivot
    
 on jump pFootLoc, pFootShortName
    
-   if not sCheckingForWin and not isAnimating() then
-      
-      set the cUserInput of this stack to true
-      
+   if not sCheckingForWin and not isAnimating() and the cPopoverAnimating of this stack is false then
+
       resetShowFeet
       
       put "jump" into sCurrentAnimation
@@ -1113,12 +1110,11 @@ end resetShowFeet
 
 on pivot
    
-   deleteTutorialPopovers
+   //answer isAnimating() & " " & the cPopoverAnimating of this stack
    
-   if not sCheckingForWin and not isAnimating() then -- If no element is currently being animated, and we're not checking for a win
+   if not sCheckingForWin and not isAnimating() and the cPopoverAnimating of this stack is false then -- If no element is currently being animated, and we're not checking for a win
       
-      set the cUserInput of this stack to true
-      
+      removeTutorialPopovers    
       resetShowFeet
       
       put "pivot" into sCurrentAnimation
@@ -1264,7 +1260,7 @@ on pivot
          
       else if the visible of btn "pivot" then -- If no collision and pivot is visible, we can go ahead and pivot
          
-         put "pivot" into sUIObjectTouchedBeforeMostRecentSuccessfulMove -- Take a note so we can check tutorial progress
+         put "pivot" into sUIObjectTouched -- Take a note so we can check tutorial progress
          put sMovesCounter + 1 into sMovesCounter -- sMovesCounter++
          
          put 0 into sFootPivotCount -- Register than no feet have yet moved

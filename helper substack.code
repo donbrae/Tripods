@@ -114,9 +114,9 @@ command showPopover pName, pMessage, pObj
    put 20 into tPopoverPadding
    put 0 into tButtonPadding
    put 30 into tAnimOffset
-   put 450 into tAnimSpeed
+   put 350 into tAnimSpeed
    
-   if not isAnimating() then
+   if not isAnimating() and the cPopoverAnimating of this stack is false then
       
       set the cPopoverAnimating of this stack to true -- Flag that popover is animating
       
@@ -162,7 +162,7 @@ command showPopover pName, pMessage, pObj
       aeFadeIn the long id of group pName, 200 -- Fade in popover
       aeUnlockMoves
       
-      send "set the cPopoverAnimating of this stack to false" to me in tAnimSpeed millisecs -- Flag that popover is not animating
+      send "set the cPopoverAnimating of this stack to false" to me in tAnimSpeed millisecs -- Flag that popover is not animating *** THIS MESSAGE DOENS"T SEEM TO BE BEING SENT IN SIMULATOR ***
       
    end if
    
@@ -183,28 +183,58 @@ function hasTutorial
    
 end hasTutorial
 
--- Hides all tutorial popovers in current card
-command deleteTutorialPopovers
-   local tCount, tFadeSpeed, tCurrentLevel, tLevelProperties
+-- Returns array of IDs of visible tutorial popover groups
+function getTutorialPopovers
+   local tPopovers, tIndex, tControlCount
    
-   -- If there's a tutorial for this level, delete any popovers
-   if hasTutorial() then
+   put 1 into tIndex
+   put the number of controls of this cd into tControlCount -- Get number of controls of card
+   put empty into tPopovers
+   
+   repeat with x = tControlCount down to 1
+      if the cPopover of control x is true and the visible of control x is true then -- If it's a visible popover
+         put the long id of control x of this card into tPopovers[tIndex]
+         put tIndex + 1 into tIndex
+      end if
+   end repeat
+   
+   return tPopovers
+   
+end getTutorialPopovers
+
+-- Hides all tutorial popovers in current card
+command removeTutorialPopovers
+   local tCount, tFadeSpeed, tCurrentLevel, tLevelProperties, tPopovers, tNumberOfPopovers
+   
+   -- If there's a tutorial for this level, and the user has been following it, delete any popovers
+   if hasTutorial() and the cTutorialToggle of this stack is true then
       
       put 50 into tFadeSpeed
-      put 250 into tTimeOffset -- Time in millisecs after fadeout at which element is deleted
+      put tFadeSpeed * 5 into tTimeOffset -- Time in millisecs after fadeout at which element is deleted
       
-      put the number of controls of this cd into tCount
+      put getTutorialPopovers() into tPopovers
+      put the number of lines of (the keys of tPopovers) into tNumberOfPopovers
       
-      repeat with x = tCount down to 1
-         if the cPopover of control x is "true" then
-            if the visible of control x is true and not isAnimating() then
-               aeFadeOut the long id of control x of this cd, tFadeSpeed
-            end if         
-            send "delete the long id of control x of this cd" to this cd in tTimeOffset millisecs -- Offset to avoid causing error in AE
-         end if
-      end repeat
+      if tNumberOfPopovers is not empty then -- If there popovers (i.e. where user hasn't tapped on them to make them disappear)
+         repeat with x = 1 to tNumberOfPopovers
+            set the cPopoverAnimating of this stack to true -- Flag that we're animating popover fadeout
+            aeFadeOut tPopovers[x], tFadeSpeed
+            send "deleteTutorialPopover tPopovers[x], x, tNumberOfPopovers" to this cd in tTimeOffset millisecs -- Offset to avoid causing error in AE
+         end repeat
+      end if
    end if
-end deleteTutorialPopovers
+end removeTutorialPopovers
+
+-- Delete tutorial popup object from the card
+command deleteTutorialPopover pPopoverGroupId, pArrayIndex, pNumberOfPopovers
+   
+   delete pPopoverGroupId
+   
+   if pArrayIndex = pNumberOfPopovers then
+      set the cPopoverAnimating of this stack to false
+   end if
+   
+end deleteTutorialPopover
 
 ## Modification of aeFadeIn which lightly highlights button when touched
 on aeTouchButtonFadeIn pControl,pDuration
