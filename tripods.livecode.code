@@ -61,8 +61,7 @@ on openStack
    end if
    
    aeSetFrameRate 60 -- Set the Animation Engine frame rate
-   
-   -- restoreLevelCardFromDataStack 
+
    restoreApp
    
 end openStack
@@ -184,6 +183,7 @@ on saveState
    
 end saveState
 
+-- Starts the level
 on goStartLevel
    
    lock screen for visual effect
@@ -218,7 +218,6 @@ on showTutorialPopover pDelay
       
       put the long id of btn tUIObject into tObj
       send "showPopover tName, tMessage, tObj" to me in pDelay millisecs
-      put "showTutorialPopover" into msg box
    end if
    
 end showTutorialPopover
@@ -412,7 +411,6 @@ on setupLevelUI
    put the cScreenBottom of the current stack - (the height of the group "footer_controls" of card "level" / 2) into tControlsY
    put the cScreenTop of the current stack + (the height of the group "score" of card "level" / 2) into tScoreY
    set the loc of group "footer_controls" of card "level" to item 1 of the loc of this card, tControlsY
-   --set the loc of group "score" of card "level" to (the width of group "score" of card "level" / 2) + 8, tScoreY
    
    set the loc of field "progress_set" of card "level" to item 1 of the loc of this card, the cScreenTop of the current stack + (the height of the field "progress_set" of card "level" / 1.7)
    set the loc of field "progress_level" of card "level" to the loc of this card
@@ -609,23 +607,7 @@ on clearLevel
         end if
    end repeat
    
-end clearLevel   
-   
-on animateBackground
-   
-   put "bg" into tBackground
-   put "level" into tCard
-   
-   send "aeMoveTo the long id of btn tBackground of the card tCard, 0, item 2 of the loc of this card, 20000" to me in 1 millisecs -- To right
-   send "aeMoveTo the long id of btn tBackground of the card tCard, the width of this card, item 2 of the loc of this card, 20000" to me in 20100 millisecs -- To left
-   
-   if the cGameRunning of the current stack is true then
-      
-      send "animateBackground" to me in 40200 millisecs -- Repeat animation
-      
-   end if
-   
-end animateBackground   
+end clearLevel
    
 on startGame
    
@@ -724,7 +706,6 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
       put 14 into tJumpAnimTimer
    end if
    
-   --send "hidePivot 100" to me in 1 millisecs -- Fade out pivot   
    animateFoot pFootShortName, tJumpAnimTimer -- Start foot 'jump' animation
    
    if tJumpCollide and not tBoundaryHit then -- If the foot will jump onto a block
@@ -996,17 +977,7 @@ on repositionPivot pEvent
       
       put tPivotX,tPivotY into sPivotLoc
       
-      set the loc of btn "pivot" to sPivotLoc
-      
-      --      if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "pivot" then -- If the pivot needs to change location after a pivot move
-      --         put the long ID of btn "pivot" into tPivot
-      --         send "aeMoveTo tPivot, item 1 of sPivotLoc, item 2 of sPivotLoc, 200" to me in 1 millisecs
-      --      else if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "jump" then -- If the pivot needs to change location after a jump
-      --         set the loc of btn "pivot" to sPivotLoc -- Set new loc right away
-      --      else if the cGameRunning of the current stack is false then -- On card load, before game is running
-      --         set the loc of btn "pivot" to sPivotLoc  
-      --      end if
-      
+      set the loc of btn "pivot" to sPivotLoc      
       set the layer of btn "pivot" of cd "level" to top -- Make sure pivot is on top (important after it's been "demoted" during jump)
       
    end if
@@ -1109,8 +1080,6 @@ on resetShowFeet
 end resetShowFeet
 
 on pivot
-   
-   //answer isAnimating() & " " & the cPopoverAnimating of this stack
    
    if not sCheckingForWin and not isAnimating() and the cPopoverAnimating of this stack is false then -- If no element is currently being animated, and we're not checking for a win
       
@@ -1281,7 +1250,6 @@ on pivot
 end pivot
 
 -- Called by AE on completion of animation
-
 on aeMoveDone
    
    if sCurrentAnimation is "pivot" and sFootPivotCount < 2 then -- If we're pivoting but all three feet have not yet be repositioned
@@ -1380,9 +1348,8 @@ on checkWin
       
       if tFoot1LandSuccess and tFoot2LandSuccess and tFoot3LandSuccess then -- If all feet are in the right locations         
          levelWin -- Run the level win routine         
-      else         
-         --if sCurrentAnimation is "jump" then showPivot 150 -- Show the pivot if we've just successfully jumped       
-         put false into sCheckingForWin -- Flag that we're no longer checking for a win         
+      else
+         put false into sCheckingForWin -- Flag that we're no longer checking for a win
       end if
       
    end if
@@ -1535,11 +1502,6 @@ function isAnimating
    if sFoot1Loc["x"] <> item 1 of the loc of button "foot1" or sFoot1Loc["y"] <> item 2 of the loc of button "foot1" or sFoot2Loc["x"] <> item 1 of the loc of button "foot2" or sFoot2Loc["y"] <> item 2 of the loc of button "foot2" or sFoot3Loc["x"] <> item 1 of the loc of button "foot3" or sFoot3Loc["y"] <> item 2 of the loc of button "foot3" then
       put true into tIsAnimating
    end if
-   
-   -- If the pivot is in mid-transit, amend flag
-   --   if sCurrentAnimation is "pivot" then 
-   --      put true into tIsAnimating
-   --   end if
    
    return tIsAnimating
    
@@ -1744,8 +1706,7 @@ on positionSets pCardName, pCardWidth, pBtnDiameter
          
          put "set" & i - 1 into tPrevSetName -- Get previous set's name
          put item 1 of the loc of group tPrevSetName of cd pCardName into tPrevGroupLocX -- Get x loc of previous set's group         
-         put "set" & i into tSetName -- Get set name         
-         --set the loc of group tSetName of cd pCardName to tPrevGroupLocX + tDistanceBetweenLocs, item 2 of the loc of this card -- Position group relative to previous
+         put "set" & i into tSetName -- Get set name
          set the loc of group tSetName of cd pCardName to tPrevGroupLocX + tDistanceBetweenLocs, item 2 of the loc of this card -- Align on X axis relative to previous set
          set the top of group tSetName of cd pCardName to the top of group "set1" of cd pCardName -- Align on Y axis
          
@@ -1806,10 +1767,8 @@ on hideControlsInOverlay
    
    put round(item 2 of the loc of this card / 1.2) into tStartingPoint
    
-   --aeLockMoves
    aeMoveTo the long id of group "app_controls", item 1 of the loc of this card, tStartingPoint, 350 -- Move controls
    aeFadeOut the long id of group "app_controls", 300 -- Fade out controls
-   --aeUnlockMoves
    
 end hideControlsInOverlay
 
