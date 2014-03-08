@@ -41,6 +41,10 @@ on showContent
    -- Position title at top of screen
    set the loc of image "choose_a_level" to item 1 of the loc of this card, tTop
    
+   -- Position set heading
+   centerX the long ID of field "set_number"
+   set the top of field "set_number" to the bottom of image "choose_a_level"
+   
    set the loc of group "stop_btn" to item 1 of the loc of this card, tBottom
    
    set the cCurrentAnimation of this card to "showcontent" 

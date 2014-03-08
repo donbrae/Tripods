@@ -83,7 +83,7 @@ command clearCustomPropertySet pSet
    
 end clearCustomPropertySet
 
-## Center on X axis
+## Center on X axis (accept the long ID of an object)
 command centerX pElement
    
    local tX, tY
@@ -91,7 +91,7 @@ command centerX pElement
    put item 1 of the loc of this card into tX // Get center of card
    put item 2 of the loc of pElement into tY // Get current Y loc of control
    
-   set the loc of control pElement to tX, tY // Center on X axis
+   set the loc of pElement to tX, tY // Center on X axis
    
 end centerX
 
