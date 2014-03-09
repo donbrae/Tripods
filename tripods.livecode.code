@@ -590,10 +590,15 @@ end flashSprite
 
 on test
    
-   put the customProperties["set1_level1"] of this stack into tLevelProperties // Get level's custom properties
-   put the number of items in tLevelProperties[cSolution] into tLevelPoints
-   answer tLevelPoints
-   
+   repeat with tControl = 1 to the number of controls in group "set1" of cd "level_select"
+      --if "btn" is in the name of control tControl then
+         put the name of control tControl into msg box
+         set the blendLevel of control tControl of group "set1" of cd "level_select" to the blendLevel of control tControl of group "set1" of cd "level_select" + 50
+      --end if
+      --      if "btn" is in the name of control tControl or "level" is in the name of control tControl then
+      --         set the blendLevel of control tControl of group tSetName of cd pCardName to 60
+      --      end if
+   end repeat
    
 end test
 
@@ -1509,16 +1514,21 @@ end isAnimating
 
 -- Creates a pseudocard for each set of levels in the game
 on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCustomPropertySets
+   local tSetPurchased
+   
+   -- Has set been purchased?
+   if pSetNumber is among the lines of the cPurchasedSets of this stack then
+      put true into tSetPurchased
+   else
+      put false into tSetPurchased
+   end if
    
    put 1 into tCount
    repeat for each line tProperty in pCustomPropertySets -- Cycle through sets
       
-      if "set" & pSetNumber is in tProperty then -- If we find a level for this set
-         
-         put tProperty into tLevelsInSet[tCount] -- Add it to array
-         
-         put tCount + 1 into tCount -- tCount++
-         
+      if "set" & pSetNumber is in tProperty then -- If we find a level for this set         
+         put tProperty into tLevelsInSet[tCount] -- Add it to array         
+         put tCount + 1 into tCount -- tCount++         
       end if
       
    end repeat
@@ -1540,11 +1550,13 @@ on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCusto
       set the width of it to pBtnDiameter
       set the height of it to pBtnDiameter
       set the loc of it to pX, pY
+      set the blendLevel of it to 80 -- Assume set hasn't been purchased
       copy fld "level_number" of cd pCardName to group tSetName of cd pCardName -- Do the same for the field
       set the name of it to "level_number" & x
       set the width of it to pBtnDiameter
       set the height of it to pBtnDiameter
       set the loc of it to pX, pY
+      set the blendLevel of it to 70
       put "level_number" & x into tFieldName
       put x into fld tFieldName of group tSetName of cd pCardName -- Add level number to field
       
@@ -1559,8 +1571,7 @@ on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCusto
       
    end repeat
    
-   -- Add relevant level details to each button
-   
+   -- Add relevant level details to each button   
    repeat with x = 1 to tLevelsArrayLength
       
       put true into tLocked -- Set flag to true as default
@@ -1577,13 +1588,19 @@ on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCusto
          put false into tLocked
       end if
       
+      put "btn_bg" & x into tGraphicName
       if tLocked then -- If this level is locked
-         put "btn_bg" & x into tGraphicName
          set the opaque of graphic tGraphicName of group tSetName of cd pCardName to true -- Set the opaque of the background graphic to full
-         set the blendLevel of graphic tGraphicName of group tSetName of cd pCardName to 61 -- Fade button bg
-         set the blendLevel of fld tLevelField of group tSetName of cd pCardName to 28 -- Fade button value
+         if tSetPurchased then
+            set the blendLevel of graphic tGraphicName of group tSetName of cd pCardName to 61 -- Set blend level
+            set the blendLevel of fld tLevelField of group tSetName of cd pCardName to 28 -- Fade button value
+         end if
          set the cUnlocked of fld tLevelField of group tSetName of cd pCardName to false -- Mark that this field is locked
       else -- If the level is unlocked
+         -- Set blend level
+         set the blendLevel of fld tLevelField of group tSetName of cd pCardName to 0
+         set the blendLevel of graphic tGraphicName of group tSetName of cd pCardName to 0
+         
          set the cUnlocked of fld tLevelField of group tSetName of cd pCardName to true -- Mark that this field is unlocked
          put getLevelStarRating(pSetNumber, x) into tLevelStarRating
          addStarRating tLevelStarRating, pCardName, pSetNumber, x, pPadding
@@ -1599,6 +1616,17 @@ on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCusto
       end if
       
    end repeat
+   
+   -- If user has not purchased this set ************************
+   if pSetNumber is not among the lines of the cPurchasedSets of this stack then
+      copy group "unlock_set" of cd "elements" to group tSetName of cd pCardName -- Clone unlock group
+      set the loc of it to the loc of group tSetName of cd pCardName -- Center it
+      --set the layer of group "unlock_set" of group tSetName of cd pCardName to top -- Bring it to top
+      answer the layer of group "unlock_set" of group tSetName of cd pCardName
+      
+      -- set the width of graphic "bg_block" of group "unlock_set" of group tSetName of cd pCardName to the width of group tSetName of cd pCardName + 25 -- Set width to make sure width covers set so user can't click on levels
+      
+   end if
    
 end createSet
 
