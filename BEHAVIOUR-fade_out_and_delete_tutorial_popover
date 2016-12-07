@@ -1,0 +1,18 @@
+on mouseUp
+   removeTutorialPopovers
+end mouseUp
+
+on aeFadeInDone
+   -- AE doesn't look like it's sending this message
+end aeFadeInDone
+
+-- When popover has fully moved into place
+on aeMoveDone
+   put "popover in place" into msg box
+   set the cPopoverAnimating of this stack to false -- Set completion flag
+end aeMoveDone
+
+-- When popover has faded out
+on aeFadeOutDone
+   put "popover faded out" into msg box
+end aeFadeOutDone

@@ -1,0 +1,39 @@
+on mouseDown
+
+   set the blendLevel of graphic "bg_fill" of me to 85 // Show solid background
+   
+end mouseDown
+
+// Is fired only if mouse up happens over group
+on mouseUp
+   
+   if the cGameRunning of the current stack is true then
+      
+      stopGame
+      set the blendLevel of graphic "bg_fill" of me to 100 // Hide solid background
+      
+      copy btn "bg" of cd "game_title" to cd "level" -- Copy title card background to this card
+      set the name of it to "title_bg"
+      set the visible of it to false -- Hide it
+      set the loc of it to the loc of this card -- Set to centre
+
+      hideControlsInOverlay
+      aeFadeIn the long id of btn "title_bg", 350
+      
+      send "goTitleCard" to me in 350 millisecs
+      
+   end if
+   
+end mouseUp
+
+on goTitleCard
+   
+   go card "game_title"
+   
+end goTitleCard
+
+on mouseLeave
+
+   set the blendLevel of graphic "bg_fill" of me to 100 // Hide solid background
+   
+end mouseLeave

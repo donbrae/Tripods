@@ -1,0 +1,186 @@
+on preOpenCard
+   
+   // Reset star configuration
+   set the visible of btn "star1" to false
+   set the visible of btn "star2" to false
+   set the visible of btn "star3" to false
+   set the visible of btn "star1_shadow" to false
+   set the visible of btn "star2_shadow" to false
+   set the visible of btn "star3_shadow" to false
+   set the visible of btn "star1_outline" to true
+   set the visible of btn "star2_outline" to true
+   set the visible of btn "star3_outline" to true
+   
+   put the cNewHighScoreMsg of this card into fld "high_score_message" // Display any high-score message
+   
+   put the cCurrentLevel of this stack into tLevel // Get level number
+   put tLevel + 1 into tNextLevel // Get next level number
+   
+   put the cCurrentSet of the current stack into tCurrentSet // Get set number
+   put "set" & tCurrentSet & "_level" & tNextLevel into tNextLevelName // What the next level in this set would be called
+   put "set" & tCurrentSet + 1 & "_level1" into tNextSetLevel1Name // What the first level of the next set would be called
+   
+   if tNextLevelName is among the lines of the customPropertySets of the current stack then // If the next level in the current set exists
+      
+      set the cNext of me to "level" // Set custom property on this card
+      set the visible of btn "next_level" to true // Show "next level" button
+      
+   else if tNextSetLevel1Name is among the lines of the customPropertySets of the current stack then // If we've completed this set and there is another set to come
+
+      set the cNext of me to "set"
+      set the visible of btn "next_level" to true
+        
+   else
+      
+      set the visible of btn "next_level" to false // We've reached the end of the game. Hide "next level" button
+      
+   end if
+   
+   // Position and hide navigation
+   put item 1 of the loc of this card into tCardLocX
+   set the loc of grp "win_nav" to tCardLocX, 888
+   set the visible of grp "win_nav" to false
+   
+   // Empty points display fields
+   put empty into fld "points"
+   put empty into fld "total_points"
+   
+   calculatePoints tLevel, tCurrentSet
+   
+end preOpenCard
+
+## When the Home of Next buttons of the win screen are tapped, we need to update the custom properties which track where the player is in the game. See also cFartherstPoint
+on updateProgressData
+   
+   put the cNext of me into tNext
+   
+   if tNext is "level" then
+      
+      set the cCurrentLevel of this stack to the cCurrentLevel of this stack + 1 // Increment level custom property
+      
+   else if tNext is "set" then
+      
+      set the cCurrentLevel of this stack to 1 // Put to level 1...
+      set the cCurrentSet of this stack to the cCurrentSet of this stack + 1 // ...of the next stack
+      
+   end if
+   
+end updateProgressData
+
+## Calculate level and total points
+on calculatePoints pLevel, pCurrentSet
+   
+   put the cTotalPoints of this stack into tTotalPoints // Get game total points
+   put "set" & pCurrentSet & "_level" & pLevel into tLevelName // Get level name
+   put the customProperties[tLevelName] of this stack into tLevelProperties // Get level's custom properties
+   put tLevelProperties[cPoints] into tLevelPoints // Get the number of point on offer for this level   
+   put the cLevelMoves of this card into tLevelMoves // The number of moves the player took to win the level
+   
+   if the cCurrentHighScore of this card is empty then // First time user has completed this level
+      
+      put tLevelPoints - tLevelMoves into tPointsWonThisLevel // Take a point away for every move made
+      
+      if tPointsWonThisLevel < 0 then // If we have a minus number, make it 0         
+         put 0 into tPointsWonThisLevel         
+      end if
+      
+   else if the cNewHighScore of this card is not empty then // If there is a previously recorded high score for this level (which there will be by default when the user completes the level for the first time)
+      
+      // This ensures players only get points when replaying a level if they improve on the number of moves taken to win
+      
+      put the cCurrentHighScore of this card - the cNewHighScore of this card into tDiff // Get the difference between current and new high score      
+      put tDiff into tPointsWonThisLevel // Give a point for each move improvement
+      
+   else // No points earned
+      
+      put 0 into tPointsWonThisLevel
+      
+   end if
+   
+   // Bonus points earned?   
+   put the cBonusPoints of this card into tBonus
+   
+   if tBonus is not empty then
+      
+      put tPointsWonThisLevel + tBonus into tPointsWonThisLevel
+      
+   end if
+   
+   // Record points data   
+   put tTotalPoints + tPointsWonThisLevel into tNewTotalPoints // New total points
+   set the cTotalPoints of this stack to tNewTotalPoints // Set the stack-level custom property for total points
+   
+   // Display these new values to user
+   put "+" & tPointsWonThisLevel & " points" into fld "points"
+   put tNewTotalPoints & " total points" into fld "total_points"
+   
+end calculatePoints
+
+on showRating
+   
+   put the cStarRating of this card into tStarRating
+   
+   if tStarRating is "3" then
+      
+      send "animateStar star1" to me in 300 millisecs
+      send "animateStar star2" to me in 600 millisecs
+      send "animateStar star3" to me in 900 millisecs
+      send "showNav" to me in 1400 millisecs
+      
+   else if tStarRating is "2" then
+      
+      send "animateStar star1" to me in 300 millisecs
+      send "animateStar star2" to me in 600 millisecs
+      send "showNav" to me in 1100 millisecs
+      
+   else if tStarRating is "1" then
+      
+      send "animateStar star1" to me in 300 millisecs
+      send "showNav" to me in 800 millisecs
+      
+   end if
+   
+end showRating
+
+## Position and show star rating and high-score message
+on openCard
+   
+   put the cScreenTop of the current stack + (the height of group "star_rating") into tStarRatingY
+   set the loc of group "star_rating" to item 1 of the loc of this card, tStarRatingY
+   
+   set the top of field "high_score_message" to the bottom of group "star_rating" + 10
+   
+   send "showRating" to me in 150 millisecs
+   
+end openCard
+
+## Animates stars used in level rating
+on animateStar pStarBtn
+   
+   put 300 into tAnimateSpeed
+   put pStarBtn & "_outline" into tStarOutline
+   put pStarBtn & "_shadow" into tStarShadow
+   
+   //aeFadeIn the long id of btn tStarShadow, tAnimateSpeed // Fade in outlined star   
+   send "transition tStarOutline, tStarShadow, tAnimateSpeed" to me in 1 millisecs // Fade out outlined star, fade in filled star with shadow   
+   send "transition tStarShadow, pStarBtn, tAnimateSpeed" to me in 300 millisecs // Fade out filled star with shadow, fade in final star button
+
+end animateStar
+
+## Fade button 1 out, fade button 2 in
+on transition pBtn1, pBtn2, pSpeed
+   
+   aeFadeOut the long id of btn pBtn1, pSpeed
+   aeFadeIn the long id of btn pBtn2, pSpeed
+   
+end transition
+
+## Position and fade in navigation
+on showNav
+   local tWinNavY
+   
+   put the cScreenBottom of the current stack - (the height of group "win_nav") into tWinNavY
+   set the loc of group "win_nav" to item 1 of the loc of this card, tWinNavY
+   
+   aeFadeIn the long id of grp "win_nav", 500
+end showNav

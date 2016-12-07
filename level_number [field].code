@@ -1,0 +1,29 @@
+on mouseDown
+   
+   if the cCurrentAnimation of this cd is empty then
+
+      clearBtnProperties
+      set the cLevelButtonTouched of this card to the cLevel of me // Store which button was touched
+      set the cLevelButtonTouchedUnlocked of this card to the cUnlocked of me // Store the locked status of button
+      set the cNewSet of this card to empty // Populate when we've swiped to a new set
+      set the cStartX of this card to item 1 of mouseLoc() // Get x of finger position
+      
+   end if
+   
+   if the cUnlocked of me then
+      put "btn_bg" & the cLevel of me into tBackgroundGraphic
+      set the blendLevel of graphic tBackgroundGraphic to 20 // Increase blend level of graphic
+      set the blendLevel of me to 15 // Increaase blend level of graphic
+   end if
+   
+end mouseDown
+
+on mouseLeave
+   
+   if the cUnlocked of me then      
+      put "btn_bg" & the cLevel of me into tBackgroundGraphic
+      set the blendLevel of graphic tBackgroundGraphic to 0
+      set the blendLevel of me to 0
+   end if
+   
+end mouseLeave

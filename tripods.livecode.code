@@ -1,248 +1,560 @@
 local sStartUpdateTime
-local sFrameRate
 local sUpdateMessageId
+local sGridWidth
 local sCellWidth
 local sFoot1Loc
 local sFoot2Loc
 local sFoot3Loc
 local sPivotLoc
 
-local sFootPivotCount // Keep track of how many feet have moved in pivot move (animation happens asynchronously and AE only offers a single callback out of the box)
+local sFootPivotCount -- Keep track of how many feet have moved in pivot move (animation happens asynchronously and AE only offers a single callback out of the box)
 
-local sFootLanding1Locs // Array of the loc(s) that foot 1 needs to be at to win
+local sFootLanding1Locs -- Array of the loc(s) that foot 1 needs to be at to win
 local sFootLanding2Locs
 local sFootLanding3Locs
 
-local sGameRunning
+local sLevelProperties
+local sLevelWon
+
 local sCheckingForWin
 
 local sMovesCounter
-local sTotalMoves
+local sUIObjectTouched
 
-global gLevel
-global gScale
-local sLastLevelCompleted
+global gTouchStartLoc
+global gTouchedFoot
+global gDataStackPath -- Data stack storing game state on app close
+
+local sLastSetFullyCompleted -- Updated when cycling through sets so we know which the last fully complete set is
 
 local sTime
 
 local sJumpAnimateSpeed
 local sPivotAnimateSpeed
-local sCurrentAnimation // Pivot or jump
+local sCurrentAnimation -- Pivot or jump
 local sCollision
 
-## Stack custom properties: 
-// accelleratedRendering
-
 on preOpenStack
+   
    set the accelleratedRendering of this stack to true
-   set the defaultFolder to specialFolderPath("documents") // Where we write files to (good for iOS and Mac OS X)
+   
+   if the environment is "mobile" then
+      set the fullscreenmode of this stack to "noScale" -- Centres stack on device screen      
+      iphoneUseDeviceResolution true, true -- Handles scaling
+   end if
+   
+   set the cHiddenTopAndFoot of stack "tripods" to the height of this stack - the cScreenHeight of stack "tripods"
+   
+   set the defaultFolder to specialFolderPath("documents") -- Where we write files to (good for iOS and Mac OS X)
    start using stack "Helper"
    
-   if the environment is mobile then 
-      if iphoneDeviceScale() is "2" then // Returns 2 on a retina display, 1 otherwise
-         put 2 into gScale
-         iphoneUseDeviceResolution true, true // Sets whether the full resolution of high-resolution devices is to be used
-      end if
-   end if
+   setupDataStack
    
 end preOpenStack
 
 on openStack
+
+   getScreenDimensions
    
    if "animationEngine" is not among the lines of the stacksInUse then
       start using stack "animationEngine"
    end if
    
-   if there is a file "moves.txt" then
-      put URL ("file:moves.txt") into sTotalMoves // Get total moves used from file and store in script local
-   else
-      put 10000 into sTotalMoves // If no file, then put to 10000
-   end if
-   
-   retrieveHighScores
-   
+   aeSetFrameRate 60 -- Set the Animation Engine frame rate
+
+   restoreApp
    
 end openStack
 
-on closeStack
+-- Calculates screen dimensions and the top and bottom Y coords of device's screen
+command getScreenDimensions
+   local tGap
    
-   put sTotalMoves into URL ("file:moves.txt") // Store number of moves remaining   
-   saveHighScores
+   -- Work out top and bottom gap hidden on shorter devices
+   put abs(item 2 of the rect of this stack) / 2 into tGap
    
-end closeStack
+   set the cGap of the stack "tripods" to tGap
+   
+   if the environment is "mobile" then
+      
+      -- Get top and bottom Y coordinates      
+      set the cScreenTop of the current stack to tGap * 2
+      set the cScreenBottom of the current stack to item 4 of the screenRect + (tGap * 2) 
+      
+   end if
+   
+end getScreenDimensions
 
-on saveHighScores
+-- Sets up hidden stack storing app state
+command setupDataStack
+   local tmp
    
-   // Get high scores custom property as an array
-   put the customProperties["cHighScores"] of the current stack into tHighScores
+   put specialFolderPath("documents") into gDataStackPath
+   put gDataStackPath & "/data.livecode" into gDataStackPath
    
-   // Cycle through the array and format for saving to file
-   repeat for each line tKey in the keys of tHighScores
-      put tKey & ":" & tHighScores[tKey] & return after tArrayContents
+   -- If we don't already have a data stack, create one
+   if not (there is a file gDataStackPath) then
+      
+      create stack "gameDataStack"
+      put it into tmp
+      set the visible of tmp to false
+      set the filename of tmp to gDataStackPath
+      save tmp
+      go stack "tripods"
+      
+   end if
+
+end setupDataStack
+
+-- Makes copy of level card and stores it in data stack
+command saveLevelCardToDataStack
+   
+   -- Set current level state data as custom properties on level card
+   set the pFoot1Loc of card "level" to sFoot1Loc
+   set the pFoot2Loc of card "level" to sFoot2Loc
+   set the pFoot3Loc of card "level" to sFoot3Loc
+   set the pPivotLoc of card "level" to sPivotLoc
+   set the pFootLanding1Locs of card "level" to sFootLanding1Locs
+   set the pFootLanding2Locs of card "level" to sFootLanding2Locs
+   set the pFootLanding3Locs of card "level" to sFootLanding3Locs
+   set the pMovesCounter of card "level" to sMovesCounter
+   
+   delete the last card of stack gDataStackPath -- Delete any previous data stack
+   copy card "level" of this stack to stack gDataStackPath -- Copy level card to data stack
+   
+end saveLevelCardToDataStack
+
+-- Gets copy of level card and moves it to the main stack
+command restoreLevelCardFromDataStack
+   
+   -- If we've previously saved level data on exit
+   if there is a card "level" of stack gDataStackPath then
+      
+      delete card "level" of this stack // Delete level card
+      copy card "level" of stack gDataStackPath to this stack // Replace it with saved level
+      go cd "level"
+      setupLevelProperties
+      reinitialiseLevel
+      startGame
+      
+   else -- If not, go to title card
+      
+      go card "game_title"
+      
+   end if
+   
+end restoreLevelCardFromDataStack
+
+-- Moves custom properties from saved stack and applies to the "tripods" stack
+on restoreApp
+   
+   if the number of lines in customKeys of the stack gDataStackPath > 0 then
+      
+      -- Custom properties
+      set the cCurrentLevel of the current stack to the cCurrentLevel of stack gDataStackPath
+      set the cCurrentSet of the current stack to the cCurrentSet of stack gDataStackPath
+      set the cTotalPoints of the current stack to the cTotalPoints of stack gDataStackPath
+      set the cAudio of the current stack to the cAudio of stack gDataStackPath
+      set the cFarthestPoint of the current stack to the cFarthestPoint of stack gDataStackPath
+      
+      -- High scores
+      set the customProperties["cHighScores"] of this stack to the customProperties["cHighScores"] of stack gDataStackPath
+      
+      -- Audio prefs
+      set the customProperties["cAudioPrefs"] of this stack to the customProperties["cAudioPrefs"] of stack gDataStackPath
+      
+   end if
+   
+end restoreApp
+
+-- Saves game's state to separate stack when app is closed
+on saveState
+   
+   set the cCurrentLevel of stack gDataStackPath to the cCurrentLevel of the current stack
+   set the cCurrentSet of stack gDataStackPath to the cCurrentSet of the current stack
+   set the cTotalPoints of stack gDataStackPath to the cTotalPoints of the current stack
+   set the cAudio of stack gDataStackPath to the cAudio of the current stack
+   set the cFarthestPoint of stack gDataStackPath to the cFarthestPoint of the current stack
+   
+   set the customProperties["cAudioPrefs"] of stack gDataStackPath to the customProperties["cAudioPrefs"] of this stack
+   set the customProperties["cHighScores"] of stack gDataStackPath to the customProperties["cHighScores"] of this stack
+   
+   save stack gDataStackPath
+   
+end saveState
+
+-- Starts the level
+on goStartLevel
+   
+   lock screen for visual effect
+   go cd "level"
+   unlock screen with dissolve fast
+   
+   initialiseLevel
+   
+   repositionPivot "launch"
+   flashSprite
+      
+   showTutorialPopover 1250
+   
+   startGame
+   
+end goStartLevel
+
+-- If this level has a tutorial, and the user hasn't already tried to make a move, show first popover
+on showTutorialPopover pDelay
+   local tName, tUIObject, tMessage, tObj
+   
+   if hasTutorial() and the cTutorialToggle of this stack is true and the number of items in sLevelProperties["cTutorial"] > 0 then
+      put "tutorial_popover" into tName
+      put item 1 of sLevelProperties["cTutorial"] into tUIObject // Get first item of tutorial string
+      
+      // Work out popover text
+      if tUIObject is not "pivot" then
+         put "Swipe" into tMessage
+      else
+         put "Tap" into tMessage
+      end if
+      
+      put the long id of btn tUIObject into tObj
+      send "showPopover tName, tMessage, tObj" to me in pDelay millisecs
+   end if
+   
+end showTutorialPopover
+
+-- Level launch controller
+on launchLevel
+   
+   stopGame -- Defensive call to stopGame
+   
+   set the cTutorialToggle of this stack to true -- For the moment, we'll always show a level's tutorial if it has one
+   set the cPopoverAnimating of this stack to false -- Reset popover animation flag
+   put empty into sUIObjectTouched -- Reset move tracker
+   
+   configureLevelCard   
+   positionLevelElements
+   setupLevelProperties
+   setupLevelUI
+   
+   goStartLevel
+   
+end launchLevel
+
+-- Copies controls from relevant level template to the actual level card
+on configureLevelCard
+   
+   put the cCurrentSet of this stack into tCurrentSet -- Get current set   
+   put "set" & tCurrentSet & "_level" & the cCurrentLevel of this stack into tCurrentLevel -- Get level name
+   put the customProperties[tCurrentLevel] of this stack into tLevelProperties -- Get level's custom properties
+   put tLevelProperties into sLevelProperties -- Make level properties available to whole script
+   put tLevelProperties["cLevelTemplate"] into tTemplateName   
+   set the icon of btn "bg" of cd tTemplateName to the cSetBackgrounds[tCurrentSet] of the current stack -- Set image of background button
+   
+   deleteControlsFromCard "level" -- Delete any existing controls from the "level" card
+   
+   repeat with tControl = 1 to the number of controls in cd tLevelProperties["cLevelTemplate"] -- Go through all controls in template card
+      put the long name of control tControl of card tTemplateName into tControlName -- Get control name     
+      if "group" is in tControlName and word 1 of tControlName is "group" and word 4 of tControlName is not "group" or "group" is not in tControlName then -- Don't want to clone children of groups twice 
+         copy control tControl of card tTemplateName to card "level" -- Copy them over to the level
+      end if
    end repeat
    
-   put tArrayContents into URL ("file:highscores.txt") // Save to file
+   -- Populate src element buttons with images relevant to this level
    
-end saveHighScores
+   put tLevelProperties["cFootImageGrps"] into tFootImageGrps -- Get image groups used for each foot
+   split tFootImageGrps by return and ":" -- Split into array
+   
+   repeat for each line tKey in the keys of tFootImageGrps
+      
+      put tFootImageGrps[tKey] & "@2x" into tFootImage -- Concatenate foot image name
+      put "foot" & tKey & "_src" into tButtonName -- Concatenate button name      
+      set the cAnim of btn tButtonName of cd "level" to the cAnim of grp tFootImageGrps[tKey] of the cd "elements" -- Apply animation image list (from foot group custom properties) to the foot
+      setControlIcon tButtonName, "level", tFootImage, "elements" -- Set the icon
+      
+      put tFootImageGrps[tKey] & "_landing@2x" into tFootLandingImage -- Concatenate foot landing image name
+      put "landing" & tKey & "_src" into tButtonName -- Concatenate button name
+      setControlIcon tButtonName, "level", tFootLandingImage, "elements" -- Set the icon
+      
+   end repeat
+   
+   -- If there's a high score for this level, add it to the "Best" field
+   put item 1 of the cHighScores[tCurrentLevel] of the current stack into tHighScore
+   if tHighScore is not empty then      
+      put "Best: " & tHighScore into fld "previous_best" of cd "level"
+   else
+      set the visible of fld "previous_best" of cd "level" to false
+   end if
+   
+   -- Add set and level info
+   put "Set " & the cCurrentSet of the current stack into field "progress_set" of cd "level"
+   put "Level " & the cCurrentLevel of the current stack into field "progress_level" of cd "level"
+   
+   -- Amend audio toggle button
+   if the cAudio of the current stack is true then set the blendLevel of graphic "line" of group "audio_toggle_btn" of cd "level" to 100
+   
+end configureLevelCard
 
-## Read high scores from file
-on retrieveHighScores
+-- Position the relevant elements (to cater for different screen sizes)
+on positionLevelElements
    
-   if there is a file "highscores.txt" then      
-      put URL ("file:highscores.txt") into tHighScores // Get text file   
-      split tHighScores by return and ":" // Split into array   
-      set the customProperties["cHighScores"] of this stack to tHighScores // Set the array to value of cHighScores custom property
-   end if   
+   set the loc of btn "grid" of cd "level" to the loc of this card -- Center game grid
+   put the width of this card - the right of btn "grid" of cd "level" into tMargin
    
-end retrieveHighScores
+   -- Position "Best" and "Moves" fields
+   if the visible of fld "previous_best" of cd "level" then      
+      set the left of fld "previous_best" of cd "level" to tMargin - 6
+      set the bottom of fld "previous_best" of cd "level" to the top of btn "grid" of cd "level"
+      set the bottom of fld "moves" of cd "level" to the top of fld "previous_best" of cd "level" + 10
+   else
+      set the bottom of fld "moves" of cd "level" to the top of btn "grid" of cd "level" - 11
+   end if
 
-on setupLevel
+   set the left of fld "moves" of cd "level" to tMargin - 6 -- Moves field always visible   
    
-   put the width of button "grid" / 8 into sCellWidth
-   put sCellWidth / 2 + the left of button "grid" into tX
-   put sCellWidth / 2 + the top of button "grid" into tY   
-   put the cLevelData["elPlacement"] of the current cd into tElPlacement
+   -- Position "Exit" button   
+   set the bottom of group "footer_controls" of cd "level" to the height of this cd - tMargin
+   set the loc of group "footer_controls" of cd "level" to item 1 of the loc of this card, the height of this cd - round(the height of group "footer_controls" of cd "level" / 2.5) - tMargin
+   
+   if the environment is "mobile" then
+      
+      set the loc of btn "bg" of cd "level" to the loc of this cd
+      set the loc of btn "grid" of cd "level" to the loc of this cd
+      
+   end if
+   
+end positionLevelElements
+
+-- Sets up data related to this level
+on setupLevelProperties
+   
+   put 500 into sJumpAnimateSpeed -- Speed in ms jump
+   put 340 into sPivotAnimateSpeed -- Speed in ms pivot
+   
+   put the width of btn "grid" of cd "level" into sGridWidth -- Get width of grid
+   
+   -- Get width of each circular 'cell'
+   if sGridWidth is 608 then -- 8x8 grid
+      
+      put the width of btn "grid" of cd "level" / 8 into sCellWidth
+           
+   else if sGridWidth is 600 then -- 6x6 grid
+      
+      put the width of btn "grid" of cd "level" / 6 into sCellWidth
+      put sJumpAnimateSpeed / 8 * 9 into sJumpAnimateSpeed -- Slightly slower speed in ms jump
+      put sPivotAnimateSpeed / 8 * 9 into sPivotAsPivotAnimateSpeednimateSpeed -- Slightly slower speed in ms pivot
+      
+   end if
+   
+end setupLevelProperties
+
+-- Level UI setup
+on setupLevelUI
+   
+   put sCellWidth / 2 + the left of btn "grid" of cd "level" into tX -- Work out starting point on X axis
+   put sCellWidth / 2 + the top of btn "grid" of cd "level" into tY -- And the Y
+   
+   put sLevelProperties["cElementPlacement"] into tElPlacement -- Get placement grid
    
    repeat for each line l in tElPlacement -- Cycle through each line
       
       repeat for each item el in l -- Cycle through each cell
          
-         ## Check button type
+         -- Check button type
          if el is 4 then -- Block
-            clone button "block_src"
+            clone button "block_src" of cd "level"
             set the name of it to "block"
          else if el is 1 then -- Foot 1
-            clone button "foot1_src"
+            clone button "foot1_src" of cd "level"
             set the name of it to "foot1"
             set the class of it to "foot"
          else if el is 2 then -- Foot 2
-            clone button "foot2_src"
+            clone button "foot2_src" of cd "level"
             set the name of it to "foot2"
             set the class of it to "foot"
          else if el is 3 then -- Foot 3
-            clone button "foot3_src"
+            clone button "foot3_src" of cd "level"
             set the name of it to "foot3"
             set the class of it to "foot"
          else if el is 5 then -- Landing 1
-            clone button "landing1_src"
+            clone button "landing1_src" of cd "level"
             set the name of it to "landing1"
             set the class of it to "landing"
          else if el is 6 then -- Landing 2
-            clone button "landing2_src"
+            clone button "landing2_src" of cd "level"
             set the name of it to "landing2"
             set the class of it to "landing"
          else if el is 7 then -- Landing 3
-            clone button "landing3_src"
+            clone button "landing3_src" of cd "level"
             set the name of it to "landing3"
             set the class of it to "landing"
-         else if el is 8 then -- Pivot
-            clone button "pivot_src"
-            set the name of it to "pivot"
-            set the visible of it to false
          end if
          
          if el is not 0 then
-            set the loc of the last button to tX,tY -- Place button on grid
+            set the loc of the last button of cd "level" to tX,tY -- Place button on grid
          end if
          
          put tX + sCellWidth into tX -- Next cell
          
-      end repeat 
+      end repeat
       
-      put sCellWidth / 2 + the left of button "grid" into tX -- Back to beginning of row
+      put sCellWidth / 2 + the left of button "grid" of cd "level" into tX -- Back to beginning of row
       put tY + sCellWidth into tY -- Next row
       
    end repeat
    
-   // Clone shadow buttons for detecting collisons during pivots
-   clone button "shadowFoot1_src"
-   set the name of it to "shadowFoot1"
-   set the class of it to "shadowFoot"
-   clone button "shadowFoot2_src"
-   set the name of it to "shadowFoot2"
-   set the class of it to "shadowFoot"
-   clone button "shadowFoot3_src"
-   set the name of it to "shadowFoot3"
-   set the class of it to "shadowFoot"
+   -- Clone pivot. It'll be positioned to tripod centroid by repositionPivot
+   clone button "pivot_src" of cd "level"
+   set the name of it to "pivot"
+   set the visible of it to false
    
-   ## Clone other bits of UI
+   -- Position app controls and score info
+   put the cScreenBottom of the current stack - (the height of the group "footer_controls" of card "level" / 2) into tControlsY
+   put the cScreenTop of the current stack + (the height of the group "score" of card "level" / 2) into tScoreY
+   set the loc of group "footer_controls" of card "level" to item 1 of the loc of this card, tControlsY
    
-   // Bring sprite to top
-   set the layer of btn "foot3" to top
-   set the layer of btn "foot2" to top
-   set the layer of btn "foot1" to top
-   set the layer of btn "pivot" to top
+   set the loc of field "progress_set" of card "level" to item 1 of the loc of this card, the cScreenTop of the current stack + (the height of the field "progress_set" of card "level" / 1.7)
+   set the loc of field "progress_level" of card "level" to the loc of this card
+   set the top of field "progress_level" of card "level" to the bottom of field "progress_set" of card "level"
    
-   ## Store the starting positions of the feet
+end setupLevelUI
+
+-- Initialise level
+on initialiseLevel
    
-   put item 1 of the loc of btn "foot1" into sFoot1Loc["x"] // X
-   put item 2 of the loc of btn "foot1" into sFoot1Loc["y"] // Y
+   -- Bring sprite to top
+   set the layer of btn "foot3" of cd "level" to top
+   set the layer of btn "foot2" of cd "level" to top
+   set the layer of btn "foot1" of cd "level" to top
+   set the layer of btn "pivot" of cd "level" to top
    
-   put item 1 of the loc of btn "foot2" into sFoot2Loc["x"]
-   put item 2 of the loc of btn "foot2" into sFoot2Loc["y"]
+   -- Store the starting positions of the feet
    
-   put item 1 of the loc of btn "foot3" into sFoot3Loc["x"]
-   put item 2 of the loc of btn "foot3" into sFoot3Loc["y"]   
-  
-   ## Store pivot position
+   put item 1 of the loc of btn "foot1" of cd "level" into sFoot1Loc["x"] -- X
+   put item 2 of the loc of btn "foot1" of cd "level" into sFoot1Loc["y"] -- Y
    
-   put the loc of btn "pivot" into sPivotLoc
+   put item 1 of the loc of btn "foot2" of cd "level" into sFoot2Loc["x"]
+   put item 2 of the loc of btn "foot2" of cd "level" into sFoot2Loc["y"]
    
-   ## Set various level values
+   put item 1 of the loc of btn "foot3" of cd "level" into sFoot3Loc["x"]
+   put item 2 of the loc of btn "foot3" of cd "level" into sFoot3Loc["y"]   
+   
+   -- Store pivot position
+   
+   put the loc of btn "pivot" of cd "level" into sPivotLoc
+   
+   -- Set various level values
    
    put false into sChangeInFootPos
-   put 500 into sJumpAnimateSpeed // Speed in ms jump
-   put 230 into sPivotAnimateSpeed // Speed in ms jump
-   put 0 into sMovesCounter // Reset move counter
-   put false into sCollision // Set collision flag to false
-   put empty into sFootLandingLocs // Empty target foot location array
-   set the label of button "moves_value" to sMovesCounter // Amend moves counter
-   put false into sCheckingForWin // Prevents further moves while code checks to see whether use has positioned feet at the target locations
+   put 0 into sMovesCounter -- Reset move counter
+   put false into sCollision -- Set collision flag to false
+   put "Moves: " & sMovesCounter into fld "moves" of cd "level" -- Amend moves counter
+   put false into sCheckingForWin -- Prevents further moves while code checks to see whether use has positioned feet at the target locations
+   put false into sLevelWon
+   put empty into sCurrentAnimation
+   put empty into sTouchStartLoc
+   put empty into gTouchStartLoc
    
-   ## Calculate landing locs
+   -- Clear landing location arrays
+   put empty into sFootLanding1Locs
+   put empty into sFootLanding2Locs
+   put empty into sFootLanding3Locs
    
-   repeat with tControl = 1 to the number of controls in current card // Go through all card controls
+   -- Calculate landing locs
+   
+   -- Get the icon ID of each foot
+   put the icon of btn "foot1" of cd "level" into tFoot1Icon
+   put the icon of btn "foot2" of cd "level" into tFoot2Icon
+   put the icon of btn "foot3" of cd "level" into tFoot3Icon
+   
+   -- Get the locs of the three landing spots
+   put the loc of btn "landing1" of cd "level" into tLanding1Loc
+   put the loc of btn "landing2" of cd "level" into tLanding2Loc
+   put the loc of btn "landing3" of cd "level" into tLanding3Loc
+   
+   if tFoot1Icon is tFoot2Icon and tFoot1Icon is tFoot3Icon then -- If all feet use the same icon      
       
-      if the class of control tControl is "foot" then // If the control is a foot
-         put the landOn of control tControl into tLanding // Get the landOn custom property, which tells us which landing cells the feet can land on to win the level
-         put 1 into tCount
-         put empty into tTempLocsStore
-         put the short name of control tControl into tButtonName // Get short name of button
-         
-         put empty into tArray // Temporary array
-         
-         repeat for each line tValue in tLanding // Go through each value in property
-            put the loc of btn tValue into tArray[tCount] // Add the locs of the corresponding landing foot into the script array
-            put tCount + 1 into tCount
-         end repeat
-         
-         // Populate script arrays for target locations
-         if tButtonName is "foot1" then
-            put tArray into sFootLanding1Locs
-         else if tButtonName is "foot2" then
-            put tArray into sFootLanding2Locs
-         else if tButtonName is "foot3" then
-            put tArray into sFootLanding3Locs
-         end if 
-         
-      end if
-   end repeat
+      -- Create temp array
+      put tLanding1Loc into tArray[1]
+      put tLanding2Loc into tArray[2]
+      put tLanding3Loc into tArray[3]
+      
+      -- Put the array into the landing locs array
+      put tArray into sFootLanding1Locs
+      put tArray into sFootLanding2Locs
+      put tArray into sFootLanding3Locs
+      
+   else if tFoot1Icon is tFoot2Icon and tFoot1Icon is not tFoot3Icon then -- If feet 1 and 2 are the same
+      
+      put tLanding1Loc into tArray[1]
+      put tLanding2Loc into tArray[2]
+      
+      put tArray into sFootLanding1Locs
+      put tArray into sFootLanding2Locs
+      
+      put tLanding3Loc into sFootLanding3Locs[1]
+      
+   else if tFoot2Icon is tFoot3Icon and tFoot1Icon is not tFoot3Icon then -- If feet 2 and 3 are the same
+      
+      put tLanding2Loc into tArray[1]
+      put tLanding3Loc into tArray[2]
+      
+      put tArray into sFootLanding2Locs
+      put tArray into sFootLanding3Locs
+      
+      put tLanding1Loc into sFootLanding1Locs[1]
+      
+   else if tFoot1Icon is tFoot3Icon and tFoot1Icon is not tFoot2Icon then -- If feet 1 and 3 are the same
+      
+      put tLanding1Loc into tArray[1]
+      put tLanding3Loc into tArray[2]
+      
+      put tArray into sFootLanding1Locs
+      put tArray into sFootLanding3Locs
+      
+      put tLanding2Loc into sFootLanding2Locs[1]
+      
+   else -- If all feet have different icons
+      
+      put tLanding1Loc into sFootLanding1Locs[1]
+      put tLanding2Loc into sFootLanding2Locs[1]
+      put tLanding3Loc into sFootLanding3Locs[1]
+      
+   end if
    
-   set the label of button "number_moves_remaining" to sTotalMoves
-   set the label of button "time_value" to 0
+   set the label of button "time_value" of cd "level" to 0
    
-end setupLevel
+end initialiseLevel
 
-// Hide the sprite
+-- Initialise level on game resume
+on reinitialiseLevel
+   
+   -- Put saved custom properties into script variables
+   put the pFoot1Loc of card "level" into sFoot1Loc
+   put the pFoot2Loc of card "level" into sFoot2Loc
+   put the pFoot3Loc of card "level" into sFoot3Loc
+   put the pPivotLoc of card "level" into sPivotLoc
+   put the pFootLanding1Locs of card "level" into sFootLanding1Locs
+   put the pFootLanding2Locs of card "level" into sFootLanding2Locs
+   put the pFootLanding3Locs of card "level" into sFootLanding3Locs
+   put the pMovesCounter of card "level" into sMovesCounter
 
+   -- Set loc of feet just incase there is an issue caused by mid-jump game exit
+   set the loc of btn "foot1" to sFoot1Loc["x"], sFoot1Loc["y"]
+   set the loc of btn "foot2" to sFoot2Loc["x"], sFoot2Loc["y"]
+   set the loc of btn "foot3" to sFoot3Loc["x"], sFoot3Loc["y"]
+   
+end reinitialiseLevel
+
+-- Hide the sprite
 on hideSprite
+   
    set the vis of button "foot1" to false
    set the vis of button "foot2" to false
    set the vis of button "foot3" to false
+   
 end hideSprite
 
-// Flash the sprite
-
+-- Flash the sprite
 on aeWrapper pAEFunc, pMilliSecs
    
    if pAEFunc is "fadeIn" then
@@ -266,20 +578,33 @@ end aeWrapper
 on flashSprite
    
    put 200 into flashSpeed
-   
-   // Flash pivot
    put the long ID of btn "pivot" into tPivot
-   send "aefadeIn tPivot, flashSpeed" to me in 750 millisecs
    
-   // Flash feet   
+   if not sLevelWon then send "aefadeIn tPivot, flashSpeed" to me in 750 millisecs -- Fade in pivot
+   
+   -- Flash feet   
    send "aeWrapper fadeIn, flashSpeed" to me in 450 millisecs
    send "aeWrapper fadeIn, flashSpeed" to me in 750 millisecs
    
 end flashSprite
 
-on clearLevel
+on test
    
-   // Delete level objects from card
+   repeat with tControl = 1 to the number of controls in group "set1" of cd "level_select"
+      --if "btn" is in the name of control tControl then
+         put the name of control tControl into msg box
+         set the blendLevel of control tControl of group "set1" of cd "level_select" to the blendLevel of control tControl of group "set1" of cd "level_select" + 50
+      --end if
+      --      if "btn" is in the name of control tControl or "level" is in the name of control tControl then
+      --         set the blendLevel of control tControl of group tSetName of cd pCardName to 60
+      --      end if
+   end repeat
+   
+end test
+
+on clearLevel   
+   
+   -- Delete level objects from card
    put the number of buttons of this card into tCount
    repeat with x = tCount down to 1
         if the class of button x of this card is "foot" or the class of button x of this card is "landing" or the class of button x of this card is "shadowFoot" or the short name of button x of this card is "block" or the short name of button x of this card is "pivot" then
@@ -291,18 +616,16 @@ end clearLevel
    
 on startGame
    
-   flashSprite
-   repositionPivot
-
-   put true into sGameRunning   
-   
-   send "startTimer" to me in 500 millisecs
+   set the cGameRunning of the current stack to true 
+   put the loc of this card into tCardLoc
    
 end startGame
 
 on stopGame
    
-   put false into sGameRunning
+   set the cGameRunning of the current stack to false -- Amend flag
+   set the pJumpTriggered of the cd "level" to false -- Reset jump custom property
+   cancelPendingMessages -- Cancel any pending messages
    
 end stopGame
 
@@ -315,11 +638,8 @@ end startTimer
 
 on goTimer
    
-   // Stop time when game stops running
-   if not sGameRunning then
-      exit to top
-   end if
-   
+   -- Stop time when game stops running
+   if the cGameRunning of the current stack is false then exit to top   
    set the label of btn "time_value" to 0 + (the seconds - sTime)
    send "goTimer" to me in 1 millisec
    
@@ -327,98 +647,158 @@ end goTimer
 
 on incrMoves
    
-   put sMovesCounter + 1 into sMovesCounter // sMovesCounter++
-   set the label of button "moves_value" to sMovesCounter // Amend moves counter
+   put "Moves: " & sMovesCounter into fld "moves" -- Amend moves counter
+   set the cTotalMovesRemaining of the current stack to the cTotalMovesRemaining of the current stack - 1 -- Total moves--
    
-   put sTotalMoves - 1 into sTotalMoves // sTotalMoves--
-   set the label of button "number_moves_remaining" to sTotalMoves // Amend total moves counter
-    
+   checkTutorialProgress
+   
 end incrMoves
 
-on goJump pX, pY, pPivotX, pPivotY, pFootShortName
+-- Checks, after each move, whether user is following tutorial. If not, the rest of the tutorial is dismissed
+on checkTutorialProgress
+   
+   if the cTutorialToggle of the current stack is true then      
+      local tCurrentTutorialObject
+      
+      put item 1 of sLevelProperties["cTutorial"] into tCurrentTutorialObject -- Get the current step from the tutorial "array"
+      
+      if tCurrentTutorialObject is not sUIObjectTouched then -- If the user hasn't followed this step in tutorial
+         set the cTutorialToggle of the current stack to false -- Cancel tutorial
+      else
+         delete item 1 of sLevelProperties["cTutorial"] -- If tutorial is being followed, delete this step from tutoral "array"
+         showTutorialPopover 400 -- Show next popover in tutorial
+      end if
+
+   end if
+   
+end checkTutorialProgress
+
+on goJump pX, pY, pPivotX, pPivotY, pFootShortName, pDirection
+   
+   removeTutorialPopovers
    
    put false into tBoundaryHit
+   
+   -- Get coords of previous foot loc
    put the loc of button pFootShortName into tPreMoveFootPos
+   put item 1 of tPreMoveFootPos into tFootPrevX
+   put item 2 of tPreMoveFootPos into tFootPrevY
    
-   set the layer of btn pFootShortName to top
-   
-   // Get coords of grid boundary
+   -- Get coords of grid boundary
    put the top of button "grid" into tGridTop
    put the bottom of button "grid" into tGridBottom
    put the left of button "grid" into tGridLeft
    put the right of button "grid" into tGridRight
    
-   if pY < tGridTop or pY > tGridBottom or pX < tGridLeft or pX > tGridRight then // If game area boundary will be hit
+   set the layer of btn pFootShortName to top -- Bring foot to front   
+   
+   if pY < tGridTop or pY > tGridBottom or pX < tGridLeft or pX > tGridRight then -- If game area boundary will be hit
       
       put true into tBoundaryHit
       
-      // Amend pX and pY parameters
-      if pY < tGridTop then
-         put tGridTop + (sCellWidth / 2) into pY
-      else if pY > tGridBottom then
-         put tGridBottom - (sCellWidth / 2) into pY
-      else if pX > tGridRight then
-         put tGridRight - (sCellWidth / 2) into pX
-      else if pX < tGridLeft then
-         put tGridLeft + (sCellWidth / 2) into pX
-      end if
-      
    end if  
    
-   put "overshoot" into tJumpEffect // Default jump easing effect
+   put "inOut" into tJumpEffect -- Default jump easing effect
+   put sJumpAnimateSpeed into tJumpAnimateSpeed
    
-   put item 1 of tPreMoveFootPos into tFootPrevX // Get X coord of previous foot loc
-   put item 2 of tPreMoveFootPos into tFootPrevY // Get Y coord of previous foot loc
+   -- Detect collision with block
+   set the loc of btn "shadowFoot1" to pX,pY -- Set position of a shadow foot to check for imminent collisions  
+   put detectCollision() into tJumpCollide
    
-   if tBoundaryHit then // If a boundary has been hit
+   if tBoundaryHit then 
+      put 10 into tJumpAnimTimer
+   else
+      put 14 into tJumpAnimTimer
+   end if
+   
+   animateFoot pFootShortName, tJumpAnimTimer -- Start foot 'jump' animation
+   
+   if tJumpCollide and not tBoundaryHit then -- If the foot will jump onto a block
       
-      put "bounce" into tEffect      
-      
-      // Get mid-point between other two feet
-      if pFootShortName is "foot1" then
-         put getMidPoint(the loc of btn "foot2", the loc of btn "foot3") into tMidPoint
-      else if pFootShortName is "foot2" then
-         put getMidPoint(the loc of btn "foot1", the loc of btn "foot3") into tMidPoint
-      else if pFootShortName is "foot3" then
-         put getMidPoint(the loc of btn "foot1", the loc of btn "foot2") into tMidPoint
-      end if
-      
-      send "hidePivot 100" to me in 1 millisecs // Fade out pivot
-  
-      aeMoveTo the long id of btn pFootShortName, item 1 of tMidPoint, item 2 of tMidPoint, sJumpAnimateSpeed / 3.5, "" // Move to boundary
-      send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, tEffect" to btn pFootShortName in 200 milliseconds // Jump back after wait
-      send "showPivot 150" to me in 300 millisecs // Fade pivot back in
-            
-   else // Otherwise, move to new position
-      
-      send "hidePivot 100" to me in 1 millisecs // Fade out pivot
-            
-      animateFoot pFootShortName
+      put "jumpFail" into sCurrentAnimation
       
       aeLockMoves
       aeMoveTo the long id of btn pFootShortName,pX,pY,sJumpAnimateSpeed,tJumpEffect
       aeUnlockMoves
-           
-   end if
-   
-   // Detect collision with block
-   set the loc of btn "shadowFoot1" to pX,pY // Set position of a shadow foot to check for imminent collisions  
-   put detectCollision() into tJumpCollide
-   
-   if tJumpCollide and not tBoundaryHit then // If the foot will jump onto a block
+      
+      send "animateFoot pFootShortName, 20" to me in sJumpAnimateSpeed + 400 millisecs -- Start foot 'jump' animation
+      send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, inOut" to btn pFootShortName in sJumpAnimateSpeed + 400 millisecs -- Call jumpBack() after a short interval
+      send "repositionPivot" to me in sJumpAnimateSpeed + 1250 millisecs -- Reposition the pivot foot has bounced back
+      
+   else if tBoundaryHit then -- If boundary will be hit
+      
       put "jumpFail" into sCurrentAnimation
-      put "overshoot" into tEffect
-      send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, tEffect" to btn pFootShortName in 700 milliseconds // Call jumpBack() after a short interval
-      send "showPivot 150" to me in 1000 millisecs // Fade pivot back in
+      
+      if pDirection is "N" then
+         put item 1 of the loc of btn pFootShortName into pX -- X pos will be the same
+         put the top of btn "grid" + (sCellWidth / 2) into pY -- Jump to top of grid
+      else if pDirection is "E" then
+         put the right of btn "grid" - (sCellWidth / 2) into pX
+         put item 2 of the loc of btn pFootShortName into pY
+      else if pDirection is "S" then
+         put item 1 of the loc of btn pFootShortName into pX
+         put the bottom of btn "grid" - (sCellWidth / 2) into pY
+      else if pDirection is "W" then
+         put the left of btn "grid" + (sCellWidth / 2) into pX
+         put item 2 of the loc of btn pFootShortName into pY
+      else -- For other jump directions, we'll move to the triangle centroid
+         
+         -- Position shadow feet in what would be the post-jump positions (pFootShortName is, of course, out of bounds)
+         if pFootShortName is "foot1" then
+            set the loc of btn "shadowFoot1" to pX,pY
+            set the loc of btn "shadowFoot2" to the loc of btn "foot2"
+            set the loc of btn "shadowFoot3" to the loc of btn "foot3"
+         else if pFootShortName is "foot2" then
+            set the loc of btn "shadowFoot2" to pX,pY
+            set the loc of btn "shadowFoot1" to the loc of btn "foot1"
+            set the loc of btn "shadowFoot3" to the loc of btn "foot3"
+         else if pFootShortName is "foot3" then
+            set the loc of btn "shadowFoot3" to pX,pY
+            set the loc of btn "shadowFoot1" to the loc of btn "foot1"
+            set the loc of btn "shadowFoot2" to the loc of btn "foot2"
+         end if
+         
+         -- Get coords of the shadow feet
+         put item 1 of the loc of btn "shadowFoot1" into x1
+         put item 1 of the loc of btn "shadowFoot2" into x2
+         put item 1 of the loc of btn "shadowFoot3" into x3
+         
+         put item 2 of the loc of btn "shadowFoot1" into y1
+         put item 2 of the loc of btn "shadowFoot2" into y2
+         put item 2 of the loc of btn "shadowFoot3" into y3
+         
+         put getTriangleCentroid(x1, x2, x3, y1, y2, y3) into tCentroid -- Get centroid
+         
+         -- Modify coord parameters to centroid coords
+         put round(item 1 of tCentroid) into pX
+         put round(item 2 of tCentroid) into pY
+         
+      end if
+      
+      put round(sJumpAnimateSpeed / 1.5) into tJumpAnimateSpeed
+      
+      -- Set timer for jump back to where the foot was
+      send "jumpBack pFootShortName, tFootPrevX, tFootPrevY, bounce" to me in (tJumpAnimateSpeed + 100) milliseconds -- Jump back after short wait
+      send "repositionPivot" to me in sJumpAnimateSpeed + 770 millisecs -- Reposition the pivot after bounce back
+      
    end if
    
-   if not tBoundaryHit and not tJumpCollide then // If a boundary hasn't been hit, or the foot hasn't jumped onto a block
+   if not tJumpCollide then
       
-      send "showPivot 150" to me in sJumpAnimateSpeed millisecs
+      -- Do the jump
+      aeLockMoves
+      aeMoveTo the long id of btn pFootShortName,pX,pY,tJumpAnimateSpeed,tJumpEffect
+      aeUnlockMoves
       
-      send "incrMoves" to this card in sJumpAnimateSpeed milliseconds // Increment moves counter
-
-      if pFootShortName is "foot1" then // Update script-level loc for relevant foot
+   end if
+   
+   if not tBoundaryHit and not tJumpCollide then -- If a boundary hasn't been hit, or the foot hasn't jumped onto a block
+      
+      put pFootShortName into sUIObjectTouched -- Take a note so we can check tutorial progress
+      put sMovesCounter + 1 into sMovesCounter -- sMovesCounter++
+      send "incrMoves" to this card in sJumpAnimateSpeed milliseconds -- Increment moves counter
+      
+      if pFootShortName is "foot1" then -- Update script-level loc variable for relevant foot
          put pX into sFoot1Loc["x"]
          put pY into sFoot1Loc["y"]
       else if pFootShortName is "foot2" then
@@ -432,42 +812,50 @@ on goJump pX, pY, pPivotX, pPivotY, pFootShortName
    
 end goJump
 
-## Fades out pivot
+-- Fades out pivot
 
 on hidePivot pSpeed
    
-   put the long ID of btn "pivot" into tPivot      
-   aeFadeOut tPivot, pSpeed
+   if the cGameRunning of the current stack is true then
+      
+      put the long ID of btn "pivot" into tPivot      
+      aeFadeOut tPivot, pSpeed
+      
+   end if
    
 end hidePivot
 
-## Fades in pivot and puts to top layer
+-- Fades in pivot and puts to top layer
 
 on showPivot pSpeed
    
-   put the long ID of btn "pivot" into tPivot   
-   set the layer of tPivot to top
-   aeFadeIn tPivot, pSpeed
+   if the cGameRunning of the current stack is true and not sLevelWon then
+      
+      put the long ID of btn "pivot" into tPivot   
+      set the layer of tPivot to top
+      aePivotFadeIn tPivot, pSpeed
+      
+   end if   
    
 end showPivot
 
-## Animates lift and drop of foot
+-- Animates lift and drop of foot
 
 on goAnimate pFootShortName, imageID
    set the icon of btn pFootShortName to imageID
 end goAnimate
 
-## Control animation for lift and drop of foot
+-- Control animation for lift and drop of foot
 
-on animateFoot pFootShortName
+on animateFoot pFootShortName, pFrameRateFactor
    
-   put the imgGrp of btn pFootShortName into tImgGrpID // Get the ID of the image group which corresponds with this foot
-   put the anim of group id tImgGrpID of card "elements" into tAnimImages // Get the anim custom property of the group (in the "elements" card). This lists the images which will be used in the animation
+   put the imgGrp of btn pFootShortName into tImgGrpID -- Get the ID of the image group which corresponds with this foot
+   put the cAnim of btn pFootShortName into tAnimImages -- Get the anim custom property of the group (in the "elements" card). This lists the images which will be used in the animation
    
-   put round(sJumpAnimateSpeed / 12) into tAnimInc // Calculate a 'frame rate'
-   put 1 into tMultiplier
+   put round(sJumpAnimateSpeed / pFrameRateFactor) into tAnimInc -- Calculate a 'frame rate'
+   put 1 into tMultiplier -- So animation frames change at right moment
    
-   // Do the animation
+   -- Do the animation
    repeat for each line tImgID in tAnimImages
       send "goAnimate pFootShortName, tImgID" to btn pFootShortName in tAnimInc * tMultiplier milliseconds
       put tMultiplier + 1 into tMultiplier
@@ -475,220 +863,218 @@ on animateFoot pFootShortName
    
 end animateFoot
 
-on repositionPivot
+on repositionPivot pEvent
    
-   // Get angles of foot one to other two feet
-   put the loc of btn "foot1" into tFoot1
-   put the loc of btn "foot2" into tFoot2
-   put the loc of btn "foot3" into tFoot3
-   
-   put getAngleBetweenPoints(tFoot1, tFoot2) into tAngle12
-   put getAngleBetweenPoints(tFoot1, tFoot3) into tAngle13
-   
-   put round(sCellWidth / 6) into tPivotShift // The pivot will be moved by slightly more than the cell width
-   
-   ## For clockwise arrangement 1, 2, 3
-   
-   if tAngle12 is 63 and tAngle13 is 117 then // Position 1
-      put item 1 of tFoot1 into tPivotX
-      put item 2 of tFoot1 + sCellWidth + tPivotShift into tPivotY
+   if not isAnimating() and the cGameRunning of the current stack is true or pEvent is "launch" or sLevelWon then -- If during gameplay, or as we're just starting the game, or we've just won a level
       
-   else if tAngle12 is 90 and tAngle13 is 153 then // Position 2
-      put item 2 of tFoot3 into tPivotY
-      put item 1 of tFoot3 + sCellWidth + tPivotShift into tPivotX
+      -- Get angles of foot one to other two feet
+      put the loc of btn "foot1" into tFoot1
+      put the loc of btn "foot2" into tFoot2
+      put the loc of btn "foot3" into tFoot3
       
-   else if tAngle12 is 117 and tAngle13 is 180 then // Position 3
-      put item 1 of tFoot2 into tPivotX
-      put item 2 of tFoot2 - sCellWidth - tPivotShift into tPivotY
+      put getAngleBetweenPoints(tFoot1, tFoot2) into tAngle12
+      put getAngleBetweenPoints(tFoot1, tFoot3) into tAngle13
       
-   else if tAngle12 is 153 and tAngle13 is -153 then // Position 4
-      put item 2 of tFoot1 into tPivotY
-      put item 1 of tFoot1 - sCellWidth - tPivotShift into tPivotX
+      put round(sCellWidth / 6) into tPivotShift -- The pivot will be moved by slightly more than the cell width
       
-   else if tAngle12 is 180 and tAngle13 is -117 then // Position 5
-      put item 1 of tFoot3 into tPivotX
-      put item 2 of tFoot3 + sCellWidth + tPivotShift into tPivotY
+      -- For clockwise arrangement 1, 2, 3
       
-   else if tAngle12 is -153 and tAngle13 is -90 then // Position 6
-      put item 2 of tFoot2 into tPivotY
-      put item 1 of tFoot2 + sCellWidth + tPivotShift into tPivotX
+      if tAngle12 is 63 and tAngle13 is 117 then -- Position 1
+         put item 1 of tFoot1 into tPivotX
+         put item 2 of tFoot1 + sCellWidth + tPivotShift into tPivotY
+         
+      else if tAngle12 is 90 and tAngle13 is 153 then -- Position 2
+         put item 2 of tFoot3 into tPivotY
+         put item 1 of tFoot3 + sCellWidth + tPivotShift into tPivotX
+         
+      else if tAngle12 is 117 and tAngle13 is 180 then -- Position 3
+         put item 1 of tFoot2 into tPivotX
+         put item 2 of tFoot2 - sCellWidth - tPivotShift into tPivotY
+         
+      else if tAngle12 is 153 and tAngle13 is -153 then -- Position 4
+         put item 2 of tFoot1 into tPivotY
+         put item 1 of tFoot1 - sCellWidth - tPivotShift into tPivotX
+         
+      else if tAngle12 is 180 and tAngle13 is -117 then -- Position 5
+         put item 1 of tFoot3 into tPivotX
+         put item 2 of tFoot3 + sCellWidth + tPivotShift into tPivotY
+         
+      else if tAngle12 is -153 and tAngle13 is -90 then -- Position 6
+         put item 2 of tFoot2 into tPivotY
+         put item 1 of tFoot2 + sCellWidth + tPivotShift into tPivotX
+         
+      else if tAngle12 is -117 and tAngle13 is -63 then -- Position 7
+         put item 1 of tFoot1 into tPivotX
+         put item 2 of tFoot1 - sCellWidth - tPivotShift into tPivotY
+         
+      else if tAngle12 is -90 and tAngle13 is -27 then -- Position 8
+         put item 2 of tFoot3 into tPivotY
+         put item 1 of tFoot3 - sCellWidth - tPivotShift into tPivotX
+         
+      else if tAngle12 is -63 and tAngle13 is 0 then -- Position 9
+         put item 1 of tFoot2 into tPivotX
+         put item 2 of tFoot2 + sCellWidth + tPivotShift into tPivotY
+         
+      else if tAngle12 is -27 and tAngle13 is 27 then -- Position 10
+         put item 2 of tFoot1 into tPivotY
+         put item 1 of tFoot1 + sCellWidth + tPivotShift into tPivotX
+         
+      else if tAngle12 is 0 and tAngle13 is 63 then -- Position 11
+         put item 1 of tFoot3 into tPivotX
+         put item 2 of tFoot3 - sCellWidth - tPivotShift into tPivotY
+         
+      else if tAngle12 is 27 and tAngle13 is 90 then -- Position 12
+         put item 2 of tFoot2 into tPivotY
+         put item 1 of tFoot2 - sCellWidth - tPivotShift into tPivotX
+         
+      else if tAngle13 is 63 and tAngle12 is 117 then -- Position 1 (clockwise 1, 3, 2)         
+         put item 1 of tFoot1 into tPivotX
+         put item 2 of tFoot1 + sCellWidth + tPivotShift into tPivotY
+         
+      else if tAngle13 is 90 and tAngle12 is 153 then -- Position 2
+         put item 2 of tFoot2 into tPivotY
+         put item 1 of tFoot2 + sCellWidth + tPivotShift into tPivotX
+         
+      else if tAngle13 is 117 and tAngle12 is 180 then -- Position 3
+         put item 1 of tFoot3 into tPivotX
+         put item 2 of tFoot3 - sCellWidth - tPivotShift into tPivotY
+         
+      else if tAngle13 is 153 and tAngle12 is -153 then -- Position 4
+         put item 2 of tFoot1 into tPivotY
+         put item 1 of tFoot1 - sCellWidth - tPivotShift into tPivotX
+         
+      else if tAngle13 is 180 and tAngle12 is -117 then -- Position 5
+         put item 1 of tFoot2 into tPivotX
+         put item 2 of tFoot2 + sCellWidth + tPivotShift into tPivotY
+         
+      else if tAngle13 is -153 and tAngle12 is -90 then -- Position 6
+         put item 2 of tFoot3 into tPivotY
+         put item 1 of tFoot3 + sCellWidth + tPivotShift into tPivotX
+         
+      else if tAngle13 is -117 and tAngle12 is -63 then -- Position 7
+         put item 1 of tFoot1 into tPivotX
+         put item 2 of tFoot1 - sCellWidth - tPivotShift into tPivotY
+         
+      else if tAngle13 is -90 and tAngle12 is -27 then -- Position 8
+         put item 2 of tFoot2 into tPivotY
+         put item 1 of tFoot2 - sCellWidth - tPivotShift into tPivotX
+         
+      else if tAngle13 is -63 and tAngle12 is 0 then -- Position 9
+         put item 1 of tFoot3 into tPivotX
+         put item 2 of tFoot3 + sCellWidth + tPivotShift into tPivotY
+         
+      else if tAngle13 is -27 and tAngle12 is 27 then -- Position 10
+         put item 2 of tFoot1 into tPivotY
+         put item 1 of tFoot1 + sCellWidth + tPivotShift into tPivotX
+         
+      else if tAngle13 is 0 and tAngle12 is 63 then -- Position 11
+         put item 1 of tFoot2 into tPivotX
+         put item 2 of tFoot2 - sCellWidth - tPivotShift into tPivotY
+         
+      else if tAngle13 is 27 and tAngle12 is 90 then -- Position 12
+         put item 2 of tFoot3 into tPivotY
+         put item 1 of tFoot3 - sCellWidth - tPivotShift into tPivotX
+      else
+         -- Just a bit of defensive programming for the pivot to stay still if none of the above conditions is met (so tPivotX and tPivotY have a value) 
+         put item 1 of the loc of btn "pivot" into tPivotX
+         put item 2 of the loc of btn "pivot" into tPivotY
+      end if
       
-   else if tAngle12 is -117 and tAngle13 is -63 then // Position 7
-      put item 1 of tFoot1 into tPivotX
-      put item 2 of tFoot1 - sCellWidth - tPivotShift into tPivotY
+      put tPivotX,tPivotY into sPivotLoc
       
-   else if tAngle12 is -90 and tAngle13 is -27 then // Position 8
-      put item 2 of tFoot3 into tPivotY
-      put item 1 of tFoot3 - sCellWidth - tPivotShift into tPivotX
+      set the loc of btn "pivot" to sPivotLoc      
+      set the layer of btn "pivot" of cd "level" to top -- Make sure pivot is on top (important after it's been "demoted" during jump)
       
-   else if tAngle12 is -63 and tAngle13 is 0 then // Position 9
-      put item 1 of tFoot2 into tPivotX
-      put item 2 of tFoot2 + sCellWidth + tPivotShift into tPivotY
-      
-   else if tAngle12 is -27 and tAngle13 is 27 then // Position 10
-      put item 2 of tFoot1 into tPivotY
-      put item 1 of tFoot1 + sCellWidth + tPivotShift into tPivotX
-      
-   else if tAngle12 is 0 and tAngle13 is 63 then // Position 11
-      put item 1 of tFoot3 into tPivotX
-      put item 2 of tFoot3 - sCellWidth - tPivotShift into tPivotY
-      
-   else if tAngle12 is 27 and tAngle13 is 90 then // Position 12
-      put item 2 of tFoot2 into tPivotY
-      put item 1 of tFoot2 - sCellWidth - tPivotShift into tPivotX
-      
-   else if tAngle13 is 63 and tAngle12 is 117 then // Position 1 (clockwise 1, 3, 2)         
-      put item 1 of tFoot1 into tPivotX
-      put item 2 of tFoot1 + sCellWidth + tPivotShift into tPivotY
-      
-   else if tAngle13 is 90 and tAngle12 is 153 then // Position 2
-      put item 2 of tFoot2 into tPivotY
-      put item 1 of tFoot2 + sCellWidth + tPivotShift into tPivotX
-      
-   else if tAngle13 is 117 and tAngle12 is 180 then // Position 3
-      put item 1 of tFoot3 into tPivotX
-      put item 2 of tFoot3 - sCellWidth - tPivotShift into tPivotY
-      
-   else if tAngle13 is 153 and tAngle12 is -153 then // Position 4
-      put item 2 of tFoot1 into tPivotY
-      put item 1 of tFoot1 - sCellWidth - tPivotShift into tPivotX
-      
-   else if tAngle13 is 180 and tAngle12 is -117 then // Position 5
-      put item 1 of tFoot2 into tPivotX
-      put item 2 of tFoot2 + sCellWidth + tPivotShift into tPivotY
-      
-   else if tAngle13 is -153 and tAngle12 is -90 then // Position 6
-      put item 2 of tFoot3 into tPivotY
-      put item 1 of tFoot3 + sCellWidth + tPivotShift into tPivotX
-      
-   else if tAngle13 is -117 and tAngle12 is -63 then // Position 7
-      put item 1 of tFoot1 into tPivotX
-      put item 2 of tFoot1 - sCellWidth - tPivotShift into tPivotY
-      
-   else if tAngle13 is -90 and tAngle12 is -27 then // Position 8
-      put item 2 of tFoot2 into tPivotY
-      put item 1 of tFoot2 - sCellWidth - tPivotShift into tPivotX
-      
-   else if tAngle13 is -63 and tAngle12 is 0 then // Position 9
-      put item 1 of tFoot3 into tPivotX
-      put item 2 of tFoot3 + sCellWidth + tPivotShift into tPivotY
-      
-   else if tAngle13 is -27 and tAngle12 is 27 then // Position 10
-      put item 2 of tFoot1 into tPivotY
-      put item 1 of tFoot1 + sCellWidth + tPivotShift into tPivotX
-      
-   else if tAngle13 is 0 and tAngle12 is 63 then // Position 11
-      put item 1 of tFoot2 into tPivotX
-      put item 2 of tFoot2 - sCellWidth - tPivotShift into tPivotY
-      
-   else if tAngle13 is 27 and tAngle12 is 90 then // Position 12
-      put item 2 of tFoot3 into tPivotY
-      put item 1 of tFoot3 - sCellWidth - tPivotShift into tPivotX
-   else
-      // Just a bit of defensive programming for the pivot to stay still if none of the above conditions is met (so tPivotX and tPivotY have a value) 
-      put item 1 of the loc of btn "pivot" into tPivotX
-      put item 2 of the loc of btn "pivot" into tPivotY
-   end if
-   
-   put tPivotX,tPivotY into sPivotLoc
-   
-   if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "pivot" then // If the pivot needs to change location after a pivot move
-      put the long ID of btn "pivot" into tPivot
-      send "aeMoveTo tPivot, item 1 of sPivotLoc, item 2 of sPivotLoc, 200" to me in 1 millisecs
-   else if the loc of btn "pivot" is not sPivotLoc and sCurrentAnimation is "jump" then // If the pivot needs to change location after a jump
-      set the loc of btn "pivot" to sPivotLoc // Set new loc right away
-   else if not sGameRunning then // On card load, before game is running
-      set the loc of btn "pivot" to sPivotLoc  
    end if
    
 end repositionPivot
    
 on jump pFootLoc, pFootShortName
-
-   if not sCheckingForWin and not isAnimating() then
+   
+   if not sCheckingForWin and not isAnimating() and the cPopoverAnimating of this stack is false then
 
       resetShowFeet
       
       put "jump" into sCurrentAnimation
       
       put 1 into tFootCount
-      // Cycle through all feet
+      -- Cycle through all feet
       
-      repeat with tControl = 1 to the number of controls in current card // Go through all card controls
-
-         if the class of control tControl is "foot" then // If the control is a foot
+      repeat with tControl = 1 to the number of controls in current card -- Go through all card controls
+         
+         if the class of control tControl is "foot" then -- If the control is a foot
             
             put "foot" & tFootCount into tFoot
-            put the loc of button tFoot into tFootLoc // Get the location of this foot
+            put the loc of button tFoot into tFootLoc -- Get the location of this foot
             
-            if tFootLoc is not pFootLoc then // If this isn't the foot we've swiped
-               put tFootLoc into tOtherFeetLocs[tFootCount] // Store the coordinates of this foot
+            if tFootLoc is not pFootLoc then -- If this isn't the foot we've swiped
+               put tFootLoc into tOtherFeetLocs[tFootCount] -- Store the coordinates of this foot
             end if
             
             put tFootCount + 1 into tFootCount
          end if
          
       end repeat
-
+      
       put 1 into tCount
-      repeat for each element tElement in tOtherFeetLocs // For each of the other two foot locations
-         put getAngleBetweenPoints(pFootLoc, tElement) into tAngles[tCount] // Get the angle between the swiped foot and the location of the other foot
+      repeat for each element tElement in tOtherFeetLocs -- For each of the other two foot locations
+         put getAngleBetweenPoints(pFootLoc, tElement) into tAngles[tCount] -- Get the angle between the swiped foot and the location of the other foot
          put tCount + 1 into tCount
       end repeat
       
-      put item 1 of the loc of button pFootShortName into tX // Get current x pos of the swiped foot
-      put item 2 of the loc of button pFootShortName into tY // Get current y pos of the swiped foot
-      put item 1 of the loc of button "pivot" into tPivotX // Get current x pos of the pivot
-      put item 2 of the loc of button "pivot" into tPivotY // Get current y pos of the pivot      
+      put item 1 of the loc of button pFootShortName into tX -- Get current x pos of the swiped foot
+      put item 2 of the loc of button pFootShortName into tY -- Get current y pos of the swiped foot
+      put item 1 of the loc of button "pivot" into tPivotX -- Get current x pos of the pivot
+      put item 2 of the loc of button "pivot" into tPivotY -- Get current y pos of the pivot      
       
-      // Read angles and work out in which direct the foot needs to jump
-      if tAngles[1] is -117 and tAngles[2] is -63 or tAngles[2] is -117 and tAngles[1] is -63 then // N    
-         put tY - (sCellWidth * 4) into tY // Amend the y pos of swiped foot
-         //put tPivotY - (sCellWidth * 2) into tPivotY // Amend the y pos of pivot
-      else if tAngles[1] is -27 and tAngles[2] is 27 or tAngles[2] is -27 and tAngles[1] is 27 then // E
+      -- Read angles and work out in which direct the foot needs to jump
+      if tAngles[1] is -117 and tAngles[2] is -63 or tAngles[2] is -117 and tAngles[1] is -63 then -- N    
+         put tY - (sCellWidth * 4) into tY -- Amend the y pos of swiped foot
+         put "N" into tDirection
+      else if tAngles[1] is -27 and tAngles[2] is 27 or tAngles[2] is -27 and tAngles[1] is 27 then -- E
          put tX + (sCellWidth * 4) into tX
-         //put tPivotX + (sCellWidth * 2) into tPivotX
-      else if tAngles[1] is 117 and tAngles[2] is 63 or tAngles[2] is 117 and tAngles[1] is 63 then // S      
+         put "E" into tDirection
+      else if tAngles[1] is 117 and tAngles[2] is 63 or tAngles[2] is 117 and tAngles[1] is 63 then -- S      
          put tY + (sCellWidth * 4) into tY 
-         //put tPivotY + (sCellWidth * 2) into tPivotY
-      else if tAngles[1] is -153 and tAngles[2] is 153 or tAngles[2] is -153 and tAngles[1] is 153 then // W
+         put "S" into tDirection
+      else if tAngles[1] is -153 and tAngles[2] is 153 or tAngles[2] is -153 and tAngles[1] is 153 then -- W
          put tX - (sCellWidth * 4) into tX 
-         //put tPivotX - (sCellWidth * 2) into tPivotX
-      else if tAngles[1] is -117 and tAngles[2] is 180 or tAngles[2] is -117 and tAngles[1] is 180 then // NW
+         put "W" into tDirection
+      else if tAngles[1] is -117 and tAngles[2] is 180 or tAngles[2] is -117 and tAngles[1] is 180 then -- NW
          put tY - (sCellWidth * 2) into tY
          put tX - (sCellWidth * 3) into tX
-         //put tPivotX - sCellWidth into tPivotX
-      else if tAngles[1] is -153 and tAngles[2] is -90 or tAngles[2] is -153 and tAngles[1] is -90 then // NNW    
+         put "NW" into tDirection
+      else if tAngles[1] is -153 and tAngles[2] is -90 or tAngles[2] is -153 and tAngles[1] is -90 then -- NNW    
          put tY - (sCellWidth * 3) into tY
          put tX - (sCellWidth * 2) into tX
-         //put tPivotY - sCellWidth into tPivotY
-      else if tAngles[1] is 0 and tAngles[2] is -63 or tAngles[2] is 0 and tAngles[1] is -63 then // NE
+         put "NNW" into tDirection
+      else if tAngles[1] is 0 and tAngles[2] is -63 or tAngles[2] is 0 and tAngles[1] is -63 then -- NE
          put tY - (sCellWidth * 2) into tY
          put tX + (sCellWidth * 3) into tX
-         //put tPivotX + sCellWidth into tPivotX
-      else if tAngles[1] is -90 and tAngles[2] is -27 or tAngles[2] is -90 and tAngles[1] is -27 then // NNE    
+         put "NE" into tDirection
+      else if tAngles[1] is -90 and tAngles[2] is -27 or tAngles[2] is -90 and tAngles[1] is -27 then -- NNE    
          put tY - (sCellWidth * 3) into tY
          put tX + (sCellWidth * 2) into tX
-         //put tPivotY - sCellWidth into tPivotY
-      else if tAngles[1] is 0 and tAngles[2] is 63 or tAngles[2] is 0 and tAngles[1] is 63 then // SE
+         put "NNE" into tDirection
+      else if tAngles[1] is 0 and tAngles[2] is 63 or tAngles[2] is 0 and tAngles[1] is 63 then -- SE
          put tY + (sCellWidth * 2) into tY
          put tX + (sCellWidth * 3) into tX
-         //put tPivotX + sCellWidth into tPivotX
-      else if tAngles[1] is 90 and tAngles[2] is 27 or tAngles[2] is 90 and tAngles[1] is 27 then // SSE    
+         put "SE" into tDirection
+      else if tAngles[1] is 90 and tAngles[2] is 27 or tAngles[2] is 90 and tAngles[1] is 27 then -- SSE    
          put tY + (sCellWidth * 3) into tY
          put tX + (sCellWidth * 2) into tX
-         //put tPivotY + sCellWidth into tPivotY
-      else if tAngles[1] is 117 and tAngles[2] is 180 or tAngles[2] is 117 and tAngles[1] is 180 then // SW    
+         put "SSE" into tDirection
+      else if tAngles[1] is 117 and tAngles[2] is 180 or tAngles[2] is 117 and tAngles[1] is 180 then -- SW    
          put tY + (sCellWidth * 2) into tY
          put tX - (sCellWidth * 3) into tX
-         //put tPivotX - sCellWidth into tPivotX
-      else if tAngles[1] is 153 and tAngles[2] is 90 or tAngles[2] is 153 and tAngles[1] is 90 then // SSW    
+         put "SW" into tDirection
+      else if tAngles[1] is 153 and tAngles[2] is 90 or tAngles[2] is 153 and tAngles[1] is 90 then -- SSW    
          put tY + (sCellWidth * 3) into tY
          put tX - (sCellWidth * 2) into tX
-         //put tPivotY + sCellWidth into tPivotY
+         put "SSW" into tDirection
       end if
       
-      goJump tX, tY, tPivotX, tPivotY, pFootShortName // Do the jump, passing in the new x and y coords of the swiped foot and pivot, and the foot name
+      goJump tX, tY, tPivotX, tPivotY, pFootShortName, tDirection -- Do the jump, passing in the new x and y coords of the swiped foot and pivot, and the foot name
    end if
 end jump
 
@@ -699,8 +1085,10 @@ on resetShowFeet
 end resetShowFeet
 
 on pivot
-   if not sCheckingForWin and not isAnimating() then // If no element is currently being animated, and we're not checking for a win
+   
+   if not sCheckingForWin and not isAnimating() and the cPopoverAnimating of this stack is false then -- If no element is currently being animated, and we're not checking for a win
       
+      removeTutorialPopovers    
       resetShowFeet
       
       put "pivot" into sCurrentAnimation
@@ -716,110 +1104,110 @@ on pivot
       put getAngleBetweenPoints(the loc of button "foot1", the loc of button "foot2") into tAngle12
       put getAngleBetweenPoints(the loc of button "foot1", the loc of button "foot3") into tAngle13
       
-      ## For clockwise arrangement 1, 2, 3
+      -- For clockwise arrangement 1, 2, 3
       
-      if tAngle12 is 63 and tAngle13 is 117 then // Position 1
-         put sFoot1Loc["x"] + sCellWidth into sFoot1Loc["x"] // Move foot 1 to the right
-         put sFoot3Loc["y"] - sCellWidth into sFoot3Loc["y"] // Move foot 3 up
+      if tAngle12 is 63 and tAngle13 is 117 then -- Position 1
+         put sFoot1Loc["x"] + sCellWidth into sFoot1Loc["x"] -- Move foot 1 to the right
+         put sFoot3Loc["y"] - sCellWidth into sFoot3Loc["y"] -- Move foot 3 up
          
-      else if tAngle12 is 90 and tAngle13 is 153 then // Position 2
-         put sFoot2Loc["x"] - sCellWidth into sFoot2Loc["x"] // Foot 2 left
-         put sFoot3Loc["y"] - sCellWidth into sFoot3Loc["y"] // Foot 3 up 
+      else if tAngle12 is 90 and tAngle13 is 153 then -- Position 2
+         put sFoot2Loc["x"] - sCellWidth into sFoot2Loc["x"] -- Foot 2 left
+         put sFoot3Loc["y"] - sCellWidth into sFoot3Loc["y"] -- Foot 3 up 
          
-      else if tAngle12 is 117 and tAngle13 is 180 then // Position 3
-         put sFoot2Loc["x"] - sCellWidth into sFoot2Loc["x"] // Foot 2 left
-         put sFoot1Loc["y"] + sCellWidth into sFoot1Loc["y"] // Foot 1 down 
+      else if tAngle12 is 117 and tAngle13 is 180 then -- Position 3
+         put sFoot2Loc["x"] - sCellWidth into sFoot2Loc["x"] -- Foot 2 left
+         put sFoot1Loc["y"] + sCellWidth into sFoot1Loc["y"] -- Foot 1 down 
          
-      else if tAngle12 is 153 and tAngle13 is -153 then // Position 4
-         put sFoot3Loc["x"] + sCellWidth into sFoot3Loc["x"] // Foot 3 right
-         put sFoot1Loc["y"] + sCellWidth into sFoot1Loc["y"] // Foot 1 down
+      else if tAngle12 is 153 and tAngle13 is -153 then -- Position 4
+         put sFoot3Loc["x"] + sCellWidth into sFoot3Loc["x"] -- Foot 3 right
+         put sFoot1Loc["y"] + sCellWidth into sFoot1Loc["y"] -- Foot 1 down
          
-      else if tAngle12 is 180 and tAngle13 is -117 then // Position 5
-         put sFoot3Loc["x"] + sCellWidth into sFoot3Loc["x"] // Foot 3 right
-         put sFoot2Loc["y"] - sCellWidth into sFoot2Loc["y"] // Foot 2 up
+      else if tAngle12 is 180 and tAngle13 is -117 then -- Position 5
+         put sFoot3Loc["x"] + sCellWidth into sFoot3Loc["x"] -- Foot 3 right
+         put sFoot2Loc["y"] - sCellWidth into sFoot2Loc["y"] -- Foot 2 up
          
-      else if tAngle12 is -153 and tAngle13 is -90 then // Position 6
-         put sFoot1Loc["x"] - sCellWidth into sFoot1Loc["x"] // Foot 1 left
-         put sFoot2Loc["y"] - sCellWidth into sFoot2Loc["y"] // Foot 2 up
+      else if tAngle12 is -153 and tAngle13 is -90 then -- Position 6
+         put sFoot1Loc["x"] - sCellWidth into sFoot1Loc["x"] -- Foot 1 left
+         put sFoot2Loc["y"] - sCellWidth into sFoot2Loc["y"] -- Foot 2 up
          
-      else if tAngle12 is -117 and tAngle13 is -63 then // Position 7
-         put sFoot1Loc["x"] - sCellWidth into sFoot1Loc["x"] // Foot 1 left
-         put sFoot3Loc["y"] + sCellWidth into sFoot3Loc["y"] // Foot 3 down
+      else if tAngle12 is -117 and tAngle13 is -63 then -- Position 7
+         put sFoot1Loc["x"] - sCellWidth into sFoot1Loc["x"] -- Foot 1 left
+         put sFoot3Loc["y"] + sCellWidth into sFoot3Loc["y"] -- Foot 3 down
          
-      else if tAngle12 is -90 and tAngle13 is -27 then // Position 8
-         put sFoot2Loc["x"] + sCellWidth into sFoot2Loc["x"] // Foot 2 right
-         put sFoot3Loc["y"] + sCellWidth into sFoot3Loc["y"] // Foot 3 down
+      else if tAngle12 is -90 and tAngle13 is -27 then -- Position 8
+         put sFoot2Loc["x"] + sCellWidth into sFoot2Loc["x"] -- Foot 2 right
+         put sFoot3Loc["y"] + sCellWidth into sFoot3Loc["y"] -- Foot 3 down
          
-      else if tAngle12 is -63 and tAngle13 is 0 then // Position 9
-         put sFoot2Loc["x"] + sCellWidth into sFoot2Loc["x"] // Foot 2 right
-         put sFoot1Loc["y"] - sCellWidth into sFoot1Loc["y"] // Foot 1 up
+      else if tAngle12 is -63 and tAngle13 is 0 then -- Position 9
+         put sFoot2Loc["x"] + sCellWidth into sFoot2Loc["x"] -- Foot 2 right
+         put sFoot1Loc["y"] - sCellWidth into sFoot1Loc["y"] -- Foot 1 up
          
-      else if tAngle12 is -27 and tAngle13 is 27 then // Position 10
-         put sFoot3Loc["x"] - sCellWidth into sFoot3Loc["x"] // Foot 3 left
-         put sFoot1Loc["y"] - sCellWidth into sFoot1Loc["y"] // Foot 1 up
+      else if tAngle12 is -27 and tAngle13 is 27 then -- Position 10
+         put sFoot3Loc["x"] - sCellWidth into sFoot3Loc["x"] -- Foot 3 left
+         put sFoot1Loc["y"] - sCellWidth into sFoot1Loc["y"] -- Foot 1 up
          
-      else if tAngle12 is 0 and tAngle13 is 63 then // Position 11
-         put sFoot3Loc["x"] - sCellWidth into sFoot3Loc["x"] // Foot 3 left
-         put sFoot2Loc["y"] + sCellWidth into sFoot2Loc["y"] // Foot 2 down
+      else if tAngle12 is 0 and tAngle13 is 63 then -- Position 11
+         put sFoot3Loc["x"] - sCellWidth into sFoot3Loc["x"] -- Foot 3 left
+         put sFoot2Loc["y"] + sCellWidth into sFoot2Loc["y"] -- Foot 2 down
          
-      else if tAngle12 is 27 and tAngle13 is 90 then // Position 12
-         put sFoot1Loc["x"] + sCellWidth into sFoot1Loc["x"] // Foot 1 right
-         put sFoot2Loc["y"] + sCellWidth into sFoot2Loc["y"] // Foot 2 down        
+      else if tAngle12 is 27 and tAngle13 is 90 then -- Position 12
+         put sFoot1Loc["x"] + sCellWidth into sFoot1Loc["x"] -- Foot 1 right
+         put sFoot2Loc["y"] + sCellWidth into sFoot2Loc["y"] -- Foot 2 down        
          
-      else if tAngle13 is 63 and tAngle12 is 117 then // Position 1 (clockwise 1, 3, 2)
-         put sFoot1Loc["x"] + sCellWidth into sFoot1Loc["x"] // Move foot 1 to the right
-         put sFoot2Loc["y"] - sCellWidth into sFoot2Loc["y"] // Move foot 2 up     
+      else if tAngle13 is 63 and tAngle12 is 117 then -- Position 1 (clockwise 1, 3, 2)
+         put sFoot1Loc["x"] + sCellWidth into sFoot1Loc["x"] -- Move foot 1 to the right
+         put sFoot2Loc["y"] - sCellWidth into sFoot2Loc["y"] -- Move foot 2 up     
          
-      else if tAngle13 is 90 and tAngle12 is 153 then // Position 2
-         put sFoot3Loc["x"] - sCellWidth into sFoot3Loc["x"] // Foot 3 left
-         put sFoot2Loc["y"] - sCellWidth into sFoot2Loc["y"] // Foot 2 up
+      else if tAngle13 is 90 and tAngle12 is 153 then -- Position 2
+         put sFoot3Loc["x"] - sCellWidth into sFoot3Loc["x"] -- Foot 3 left
+         put sFoot2Loc["y"] - sCellWidth into sFoot2Loc["y"] -- Foot 2 up
          
-      else if tAngle13 is 117 and tAngle12 is 180 then // Position 3
-         put sFoot3Loc["x"] - sCellWidth into sFoot3Loc["x"] // Foot 3 left
-         put sFoot1Loc["y"] + sCellWidth into sFoot1Loc["y"] // Foot 1 down 
+      else if tAngle13 is 117 and tAngle12 is 180 then -- Position 3
+         put sFoot3Loc["x"] - sCellWidth into sFoot3Loc["x"] -- Foot 3 left
+         put sFoot1Loc["y"] + sCellWidth into sFoot1Loc["y"] -- Foot 1 down 
          
-      else if tAngle13 is 153 and tAngle12 is -153 then // Position 4
-         put sFoot2Loc["x"] + sCellWidth into sFoot2Loc["x"] // Foot 2 right
-         put sFoot1Loc["y"] + sCellWidth into sFoot1Loc["y"] // Foot 1 down
+      else if tAngle13 is 153 and tAngle12 is -153 then -- Position 4
+         put sFoot2Loc["x"] + sCellWidth into sFoot2Loc["x"] -- Foot 2 right
+         put sFoot1Loc["y"] + sCellWidth into sFoot1Loc["y"] -- Foot 1 down
          
-      else if tAngle13 is 180 and tAngle12 is -117 then // Position 5
-         put sFoot2Loc["x"] + sCellWidth into sFoot2Loc["x"] // Foot 2 right
-         put sFoot3Loc["y"] - sCellWidth into sFoot3Loc["y"] // Foot 3 up
+      else if tAngle13 is 180 and tAngle12 is -117 then -- Position 5
+         put sFoot2Loc["x"] + sCellWidth into sFoot2Loc["x"] -- Foot 2 right
+         put sFoot3Loc["y"] - sCellWidth into sFoot3Loc["y"] -- Foot 3 up
          
-      else if tAngle13 is -153 and tAngle12 is -90 then // Position 6
-         put sFoot1Loc["x"] - sCellWidth into sFoot1Loc["x"] // Foot 1 left
-         put sFoot3Loc["y"] - sCellWidth into sFoot3Loc["y"] // Foot 3 up
+      else if tAngle13 is -153 and tAngle12 is -90 then -- Position 6
+         put sFoot1Loc["x"] - sCellWidth into sFoot1Loc["x"] -- Foot 1 left
+         put sFoot3Loc["y"] - sCellWidth into sFoot3Loc["y"] -- Foot 3 up
          
-      else if tAngle13 is -117 and tAngle12 is -63 then // Position 7
-         put sFoot1Loc["x"] - sCellWidth into sFoot1Loc["x"] // Foot 1 left
-         put sFoot2Loc["y"] + sCellWidth into sFoot2Loc["y"] // Foot 2 down
+      else if tAngle13 is -117 and tAngle12 is -63 then -- Position 7
+         put sFoot1Loc["x"] - sCellWidth into sFoot1Loc["x"] -- Foot 1 left
+         put sFoot2Loc["y"] + sCellWidth into sFoot2Loc["y"] -- Foot 2 down
          
-      else if tAngle13 is -90 and tAngle12 is -27 then // Position 8
-         put sFoot3Loc["x"] + sCellWidth into sFoot3Loc["x"] // Foot 3 right
-         put sFoot2Loc["y"] + sCellWidth into sFoot2Loc["y"] // Foot 2 down
+      else if tAngle13 is -90 and tAngle12 is -27 then -- Position 8
+         put sFoot3Loc["x"] + sCellWidth into sFoot3Loc["x"] -- Foot 3 right
+         put sFoot2Loc["y"] + sCellWidth into sFoot2Loc["y"] -- Foot 2 down
          
-      else if tAngle13 is -63 and tAngle12 is 0 then // Position 9
-         put sFoot3Loc["x"] + sCellWidth into sFoot3Loc["x"] // Foot 3 right
-         put sFoot1Loc["y"] - sCellWidth into sFoot1Loc["y"] // Foot 1 up
+      else if tAngle13 is -63 and tAngle12 is 0 then -- Position 9
+         put sFoot3Loc["x"] + sCellWidth into sFoot3Loc["x"] -- Foot 3 right
+         put sFoot1Loc["y"] - sCellWidth into sFoot1Loc["y"] -- Foot 1 up
          
-      else if tAngle13 is -27 and tAngle12 is 27 then // Position 10
-         put sFoot2Loc["x"] - sCellWidth into sFoot2Loc["x"] // Foot 2 left
-         put sFoot1Loc["y"] - sCellWidth into sFoot1Loc["y"] // Foot 1 up
+      else if tAngle13 is -27 and tAngle12 is 27 then -- Position 10
+         put sFoot2Loc["x"] - sCellWidth into sFoot2Loc["x"] -- Foot 2 left
+         put sFoot1Loc["y"] - sCellWidth into sFoot1Loc["y"] -- Foot 1 up
          
-      else if tAngle13 is 0 and tAngle12 is 63 then // Position 11
-         put sFoot2Loc["x"] - sCellWidth into sFoot2Loc["x"] // Foot 2 left
-         put sFoot3Loc["y"] + sCellWidth into sFoot3Loc["y"] // Foot 3 down
+      else if tAngle13 is 0 and tAngle12 is 63 then -- Position 11
+         put sFoot2Loc["x"] - sCellWidth into sFoot2Loc["x"] -- Foot 2 left
+         put sFoot3Loc["y"] + sCellWidth into sFoot3Loc["y"] -- Foot 3 down
          
-      else if tAngle13 is 27 and tAngle12 is 90 then // Position 12
-         put sFoot1Loc["x"] + sCellWidth into sFoot1Loc["x"] // Foot 1 right
-         put sFoot3Loc["y"] + sCellWidth into sFoot3Loc["y"] // Foot 3 down
+      else if tAngle13 is 27 and tAngle12 is 90 then -- Position 12
+         put sFoot1Loc["x"] + sCellWidth into sFoot1Loc["x"] -- Foot 1 right
+         put sFoot3Loc["y"] + sCellWidth into sFoot3Loc["y"] -- Foot 3 down
          
       end if
       
-      // Move feet
+      -- Move feet
       put sFoot1Loc["x"] into tFoot1x
       put sFoot1Loc["y"] into tFoot1y
-      set the loc of btn "shadowFoot1" to tFoot1x,tFoot1y // Set shadow foot to check for imminent collisions
+      set the loc of btn "shadowFoot1" to tFoot1x,tFoot1y -- Set shadow foot to check for imminent collisions
       
       put sFoot2Loc["x"] into tFoot2x
       put sFoot2Loc["y"] into tFoot2y
@@ -829,9 +1217,9 @@ on pivot
       put sFoot3Loc["y"] into tFoot3y
       set the loc of btn "shadowFoot3" to tFoot3x,tFoot3y     
       
-      if detectCollision() then // If collision
+      if detectCollision() then -- If collision
          
-         // Put back values of feet positions - we won't be pivoting
+         -- Put back values of feet positions - we won't be pivoting
          put item 1 of the loc of btn "foot1" into sFoot1Loc["x"]
          put item 2 of the loc of btn "foot1" into sFoot1Loc["y"]
          put item 1 of the loc of btn "foot2" into sFoot2Loc["x"]
@@ -839,23 +1227,26 @@ on pivot
          put item 1 of the loc of btn "foot3" into sFoot3Loc["x"]
          put item 2 of the loc of btn "foot3" into sFoot3Loc["y"]
          
-         // Nudge feet
+         -- Nudge feet
          nudge "foot1", tFoot1x, tFoot1y, sFoot1Loc["x"], sFoot1Loc["y"]
          nudge "foot2", tFoot2x, tFoot2y, sFoot2Loc["x"], sFoot2Loc["y"]
          nudge "foot3", tFoot3x, tFoot3y, sFoot3Loc["x"], sFoot3Loc["y"]
          
-      else if the visible of btn "pivot" then // If no collision and pivot is visible, we can go ahead and pivot
+      else if the visible of btn "pivot" then -- If no collision and pivot is visible, we can go ahead and pivot
          
-         put 0 into sFootPivotCount // Register than no feet have yet moved
+         put "pivot" into sUIObjectTouched -- Take a note so we can check tutorial progress
+         put sMovesCounter + 1 into sMovesCounter -- sMovesCounter++
+         
+         put 0 into sFootPivotCount -- Register than no feet have yet moved
          put the long ID of btn "pivot" into tPivot
-
+         
          aeLockMoves
          aeMoveTo the long id of btn "foot1",tFoot1x,tFoot1y,sPivotAnimateSpeed,"overshoot"
          aeMoveTo the long id of btn "foot2",tFoot2x,tFoot2y,sPivotAnimateSpeed,"overshoot"
          aeMoveTo the long id of btn "foot3",tFoot3x,tFoot3y,sPivotAnimateSpeed,"overshoot"
          aeUnlockMoves
          
-         send "incrMoves" to this card in sPivotAnimateSpeed milliseconds // Increment moves counter
+         send "incrMoves" to this card in sPivotAnimateSpeed milliseconds -- Increment moves counter
          
       end if
       
@@ -863,23 +1254,22 @@ on pivot
    
 end pivot
 
-## Called by AE on completion of animation
-
+-- Called by AE on completion of animation
 on aeMoveDone
    
-   if sCurrentAnimation is "pivot" and sFootPivotCount < 2 then // If we're pivoting but all three feet have not yet be repositioned
+   if sCurrentAnimation is "pivot" and sFootPivotCount < 2 then -- If we're pivoting but all three feet have not yet be repositioned
       
-      put sFootPivotCount + 1 into sFootPivotCount // Increment foot count
+      put sFootPivotCount + 1 into sFootPivotCount -- Increment foot count
       
-   else if sCurrentAnimation is "pivot" and sFootPivotCount is 2 then // If the pivot is complete
+   else if sCurrentAnimation is "pivot" and sFootPivotCount is 2 then -- If the pivot is complete
       
+      checkWin
       repositionPivot
-      checkWin
       
-   else if sCurrentAnimation is "jump" then // If we've just completed a jump
+   else if sCurrentAnimation is "jump" then -- If we've just completed a jump
       
-      repositionPivot      
       checkWin
+      repositionPivot
       
    end if
    
@@ -887,11 +1277,11 @@ end aeMoveDone
 
 function detectCollision 
    put false into tCollide
-   repeat with tControl = 1 to the number of controls of current card // Cycle through card's controls
-      if the short name of control tControl is "block" then // If this one's a block
-         put the loc of control tControl into tBlockLoc // Get its location
-         if tBlockLoc is the loc of btn "shadowFoot1" or tBlockLoc is the loc of btn "shadowFoot2" or tBlockLoc is the loc of btn "shadowFoot3" then // If the loc matches one of the shadow feet
-            put true into tCollide // There has been a collision
+   repeat with tControl = 1 to the number of controls of current card -- Cycle through card's controls
+      if the short name of control tControl is "block" then -- If this one's a block
+         put the loc of control tControl into tBlockLoc -- Get its location
+         if tBlockLoc is the loc of btn "shadowFoot1" or tBlockLoc is the loc of btn "shadowFoot2" or tBlockLoc is the loc of btn "shadowFoot3" then -- If the loc matches one of the shadow feet
+            put true into tCollide -- There has been a collision
             exit repeat
          end if
       end if
@@ -900,71 +1290,71 @@ function detectCollision
    return tCollide
 end detectCollision
 
-// Nudges feet on disallowed pivot attempt
-on nudge pFoot, pFootX, pFootY, pFootCurrPosX, pFootCurrPosY // Foot, attempted X, attempted Y, pre-nudge X, pre-nudge Y
+-- Nudges feet on disallowed pivot attempt
+on nudge pFoot, pFootX, pFootY, pFootCurrPosX, pFootCurrPosY -- Foot, attempted X, attempted Y, pre-nudge X, pre-nudge Y
    
    put round(sCellWidth / 10) into nudgeAmount
    
    if item 1 of the loc of btn pFoot < pFootX then
-      move btn pFoot to pFootCurrPosX + nudgeAmount, pFootCurrPosY in 50 milliseconds without waiting // Nudge right
+      move btn pFoot to pFootCurrPosX + nudgeAmount, pFootCurrPosY in 50 milliseconds without waiting -- Nudge right
    else if item 1 of the loc of btn pFoot > pFootX then
-      move btn pFoot to pFootCurrPosX - nudgeAmount, pFootCurrPosY in 50 milliseconds without waiting // Nudge left
+      move btn pFoot to pFootCurrPosX - nudgeAmount, pFootCurrPosY in 50 milliseconds without waiting -- Nudge left
    else if item 2 of the loc of btn pFoot < pFootY then
-      move btn pFoot to pFootCurrPosX, pFootCurrPosY + nudgeAmount in 50 milliseconds without waiting // Nudge down
+      move btn pFoot to pFootCurrPosX, pFootCurrPosY + nudgeAmount in 50 milliseconds without waiting -- Nudge down
    else if item 2 of the loc of btn pFoot > pFootY then
-      move btn pFoot to pFootCurrPosX, pFootCurrPosY - nudgeAmount in 50 milliseconds without waiting // Nudge up
+      move btn pFoot to pFootCurrPosX, pFootCurrPosY - nudgeAmount in 50 milliseconds without waiting -- Nudge up
    end if
    
-   send "nudgeBack pFoot, pFootCurrPosX, pFootCurrPosY" to btn pFoot in 275 milliseconds // Call nudgeBack() after a short interval
+   send "nudgeBack pFoot, pFootCurrPosX, pFootCurrPosY" to btn pFoot in 275 milliseconds -- Call nudgeBack() after a short interval
 end nudge
 
-// Nudges feet back to original position after disallowed pivot attempt
+-- Nudges feet back to original position after disallowed pivot attempt
 on nudgeBack pTarget,pX,pY,pTime
    move btn pTarget to pX,pY in 50 milliseconds without waiting
 end nudgeBack
 
 on jumpBack pTarget,pX,pY,pEffect
-   aeMoveTo the long id of btn pTarget,pX,pY,sJumpAnimateSpeed,pEffect
+   aeMoveTo the long id of btn pTarget,pX,pY,round(sJumpAnimateSpeed / 1.5),pEffect
 end jumpBack
 
-## Check whether feet have landed correctly on respective landing locations
+-- Check whether feet have landed correctly on respective landing locations
 
 on checkWin
    
-   if sGameRunning and not sCheckingForWin and not isAnimating() then
+   if the cGameRunning of the current stack is true and not sCheckingForWin and not isAnimating() then
       
-      put true into sCheckingForWin // Flag that we're checking for a win
+      put true into sCheckingForWin -- Flag that we're checking for a win
       
-      // Reset check for feet landing correctly
+      -- Reset check for feet landing correctly
       put false into tFoot1LandSuccess
       put false into tFoot2LandSuccess
       put false into tFoot3LandSuccess
       
-      // Foot 1       
-      repeat for each element tLoc in sFootLanding1Locs // Get the locs at which foot is able to land for level to be won
-         if item 1 of the loc of button "foot1" is item 1 of tLoc and item 2 of the loc of button "foot1" is item 2 of tLoc then // If the X and Y coords of the foot match one of the array items
+      -- Foot 1       
+      repeat for each element tLoc in sFootLanding1Locs -- Get the locs at which foot is able to land for level to be won
+         if item 1 of the loc of button "foot1" is item 1 of tLoc and item 2 of the loc of button "foot1" is item 2 of tLoc then -- If the X and Y coords of the foot match one of the array items
             put true into tFoot1LandSuccess
          end if
       end repeat
       
-      // Foot 2       
+      -- Foot 2       
       repeat for each element tLoc in sFootLanding2Locs 
          if item 1 of the loc of button "foot2" is item 1 of tLoc and item 2 of the loc of button "foot2" is item 2 of tLoc then
             put true into tFoot2LandSuccess
          end if
       end repeat
       
-      // Foot 3   
+      -- Foot 3   
       repeat for each element tLoc in sFootLanding3Locs 
          if item 1 of the loc of button "foot3" is item 1 of tLoc and item 2 of the loc of button "foot3" is item 2 of tLoc then
             put true into tFoot3LandSuccess
          end if
       end repeat
       
-      if tFoot1LandSuccess and tFoot2LandSuccess and tFoot3LandSuccess then // If all feet are in the right locations
-         levelWin // Run the level win routine
+      if tFoot1LandSuccess and tFoot2LandSuccess and tFoot3LandSuccess then -- If all feet are in the right locations         
+         levelWin -- Run the level win routine         
       else
-         put false into sCheckingForWin // Flag that we're no longer checking for a win
+         put false into sCheckingForWin -- Flag that we're no longer checking for a win
       end if
       
    end if
@@ -973,72 +1363,465 @@ end checkWin
 
 on levelWin
    
-   stopGame   
-   flashSprite   
+   put true into sLevelWon
+   stopGame
+   flashSprite
+   
+   -- Fade out UI elements
+   aeLockMoves
+   aeFadeOut the long id of group "footer_controls", 250
+   aeFadeOut the long id of fld "progress_set", 250
+   aeFadeOut the long id of fld "progress_level", 250
+   aeUnlockMoves
+   
+   if sCurrentAnimation is "pivot" then
+      
+      put "pivot" into tPivot   
+      send "aeFadeOut the long id of btn tPivot, 100" to me in 250 millisecs -- Fade out pivot if the winning move was a pivot, with a short delay to wait for pivot (just because it looks nicer)
+      
+   end if
    
    put "You've won the level!" into tWinMsg
    
-   ## Check for high score
+   -- Check for high score
    
    put false into tNewHighScore
-   put "level" & gLevel into tLevelName
-   put the cHighScores[tLevelName] of this stack into tCurrentHighScore // Get previous high score
    
-   if sMovesCounter < tCurrentHighScore then // If we've completed the level in fewer moves than our previous attempts
-      put true into tNewHighScore // Flag that this is a new high score
+   put the cCurrentSet of this stack into tCurrentSet -- Get current set
+   put "set" & tCurrentSet & "_level" & the cCurrentLevel of this stack into tLevelName -- Get level name
+   put item 1 of the cHighScores[tLevelName] of this stack into tCurrentHighScore -- Get previous high score (will be empty on first attempt)
+   
+   set the cCurrentHighScore of cd "level_win" to tCurrentHighScore -- Set current high score property of win card (could be empty)
+   set the cNewHighScore of cd "level_win" to empty -- Empty new high score property of win card
+   set the cBonusPoints of cd "level_win" to empty -- Empty bonus points custom property
+   
+   if tCurrentHighScore is empty or sMovesCounter < tCurrentHighScore then -- If we've completed the level in fewer moves than our previous attempts, or this is the first time the level has been won
+      
+      put true into tNewHighScore -- Flag that this is a new high score
+      
    end if
    
-   if tNewHighScore then // If it's a new high score
-      set the cHighScores[tLevelName] of this stack to sMovesCounter // Set the high score for this level to current value of moves counter
-      put "You have also achieved a new personal best for this level of " & sMovesCounter & " moves!" into tNewHighScoreMsg
-   else 
+   if tNewHighScore then -- If it's a new high score
+      
+      put 5 into cBonusPoints -- Give 5 bonus points
+      
+      -- Record the current and new high scores for the win card
+      set the cCurrentHighScore of cd "level_win" to item 1 of the cHighScores[tLevelName] of this stack
+      set the cNewHighScore of cd "level_win" to sMovesCounter
+      
+      set the cHighScores[tLevelName] of this stack to sMovesCounter & "," & calculateStarRating() -- Set the high score and star rating for this level to current value of moves counter
+      put "You have achieved a new personal best for this level of " & sMovesCounter & " moves!" into tNewHighScoreMsg
+      
+   else
+      
       put empty into tNewHighScoreMsg
+      
    end if
    
-   set the cWinMsg of card "level_win" to tWinMsg // Set the message custom property of the win card
-   set the cNewHighScoreMsg of card "level_win" to tNewHighScoreMsg // Set the new-high-score message of the win card
-   send "showWinCard" to me in 1300 millisecs // Show card to tell user they've completed the level
-     
+   set the cWinMsg of cd "level_win" to tWinMsg -- Set the message custom property of the win card
+   set the cNewHighScoreMsg of cd "level_win" to tNewHighScoreMsg -- Set the new-high-score message of the win card
+   send "showWinCard" to me in 1300 millisecs -- Show card to tell user they've completed the level
+   
+   set the cStarRating of cd "level_win" to calculateStarRating() -- Get and set star rating
+   set the cLevelMoves of cd "level_win" to sMovesCounter -- Store moves counter in win card custom property
+   
+   updateProgress tCurrentSet
+   saveState
+   
 end levelWin
+
+-- Update cFarthestPoint property to track the farthest point reached in the game
+on updateProgress pCurrentSet
+   
+   put item 1 of the cFarthestPoint of this stack into tFarthestSet -- Farthest set reach
+   put item 2 of the cFarthestPoint of this stack into tFarthestLevel -- Fartherst level in the farthest set
+   put tFarthestSet into tFarthestArray[1] -- Add to array
+   put tFarthestLevel into tFarthestArray[2]
+   put false into tHigherPointReached -- Flag false by default
+   
+   if pCurrentSet is tFarthestSet and the cCurrentLevel of this stack > tFarthestLevel then -- If we're progressing normally and we've just completed the next level in the set
+      
+      put the cCurrentLevel of this stack into tFarthestArray[2] -- Update the farthest level of this set
+      put true into tHigherPointReached
+      
+   else if pCurrentSet > tFarthestSet then -- If we've just completed level 1 of a new set
+      
+      put pCurrentSet into tFarthestArray[1] -- Update to the new set number
+      put 1 into tFarthestArray[2]  -- Update to level 1
+      put true into tHigherPointReached
+      
+   end if
+   
+   if tHigherPointReached then -- If we've reached a new further point in game, update the custom property to reflect this
+      
+      combine tFarthestArray using comma -- Convert array so it can be viewing in the IDE as a custom property
+      set the cFarthestPoint of this stack to tFarthestArray
+      
+   end if   
+   
+end updateProgress
+
+-- Calculates the level's star rating based on the level set's cStarRating custom property
+
+function calculateStarRating
+   
+   put sLevelProperties["cStarRating"] into tStarRating -- Get star rating parameters for level
+   split tStarRating by return and ":" -- Split into array
+   
+   if sMovesCounter <= tStarRating[3] then
+      return 3 -- 3-star rating
+   else if sMovesCounter > tStarRating[3] and sMovesCounter <= tStarRating[2] then
+      return 2 -- 2-star rating
+   else
+      return 1 -- 1-star rating
+   end if
+
+end calculateStarRating
 
 on showWinCard
    
-   clearLevel // Remove onscreen game elements
-   go card "level_win" // Go to the success card
+   stopGame
+   set the icon of btn "bg" of cd "level_win" to the icon of btn "bg" of cd "level"
+   
+   -- Fade out card contents
+   lock screen for visual effect
+   put the number of controls of cd "level" into tCount   
+   repeat with x = tCount down to 1
+      if the short name of control x is not "bg" then delete control x of cd "level"
+   end repeat
+   unlock screen with dissolve very fast
+   
+   -- Go to win screen
+   lock screen for visual effect
+   go card "level_win" -- Go to the success card
+   unlock screen with dissolve very fast
    
 end showWinCard
 
 function isAnimating
+   local tIsAnimating
    
-   // If the foot is in a mid-transit location, switch on the animation flag
+   put false into tIsAnimating
+   
+   -- If a foot is in a mid-transit location, amend flag
    if sFoot1Loc["x"] <> item 1 of the loc of button "foot1" or sFoot1Loc["y"] <> item 2 of the loc of button "foot1" or sFoot2Loc["x"] <> item 1 of the loc of button "foot2" or sFoot2Loc["y"] <> item 2 of the loc of button "foot2" or sFoot3Loc["x"] <> item 1 of the loc of button "foot3" or sFoot3Loc["y"] <> item 2 of the loc of button "foot3" then
-      return true
-   else
-      return false
+      put true into tIsAnimating
    end if
+   
+   return tIsAnimating
    
 end isAnimating
+
+-- Creates a pseudocard for each set of levels in the game
+on createSet pSetNumber, pCardName, pPadding, pBtnDiameter, pDiv, pX, pY, pCustomPropertySets
+   local tSetPurchased
    
-on updateScreen
+   -- Has set been purchased?
+   if pSetNumber is among the lines of the cPurchasedSets of this stack then
+      put true into tSetPurchased
+   else
+      put false into tSetPurchased
+   end if
    
-   if sGameRunning then
+   put 1 into tCount
+   repeat for each line tProperty in pCustomPropertySets -- Cycle through sets
       
-      // If the foot is a mid-transit location, switch on the animation flag
-      if sFoot1Loc["x"] <> item 1 of the loc of button "foot1" or sFoot1Loc["y"] <> item 2 of the loc of button "foot1" or sFoot2Loc["x"] <> item 1 of the loc of button "foot2" or sFoot2Loc["y"] <> item 2 of the loc of button "foot2" or sFoot3Loc["x"] <> item 1 of the loc of button "foot3" or sFoot3Loc["y"] <> item 2 of the loc of button "foot3" then
-         put true into sAnimating
-      else
-         put false into sAnimating
+      if "set" & pSetNumber is in tProperty then -- If we find a level for this set         
+         put tProperty into tLevelsInSet[tCount] -- Add it to array         
+         put tCount + 1 into tCount -- tCount++         
       end if
       
-      if not sAnimating then 
+   end repeat
+   
+   -- Add relevant number of buttons to page
+   
+   put the number of lines of (the keys of tLevelsInSet) into tLevelsArrayLength -- Get array length
+   
+   copy group "set_template" of cd pCardName to group "all_sets" of cd pCardName -- Clone the empty group we'll use as set for group (placing it in the parent group for all sets)
+   put "set" & pSetNumber into tSetName
+   set the name of it to tSetName -- Set its name
+   set the layerMode of it to "dynamic" -- Optimized rendering
+   
+   repeat with x = 1 to tLevelsArrayLength -- Go through all levels in this set
+      
+      -- Clone button and set dimensions and loc
+      copy graphic "btn_bg" of cd pCardName to group tSetName of cd pCardName -- Make a copy of button bg and add to set's group
+      set the name of it to "btn_bg" & x
+      set the width of it to pBtnDiameter
+      set the height of it to pBtnDiameter
+      set the loc of it to pX, pY
+      set the blendLevel of it to 80 -- Assume set hasn't been purchased
+      copy fld "level_number" of cd pCardName to group tSetName of cd pCardName -- Do the same for the field
+      set the name of it to "level_number" & x
+      set the width of it to pBtnDiameter
+      set the height of it to pBtnDiameter
+      set the loc of it to pX, pY
+      set the blendLevel of it to 70
+      put "level_number" & x into tFieldName
+      put x into fld tFieldName of group tSetName of cd pCardName -- Add level number to field
+      
+      put pX + pDiv into pX -- Move along in row
+      
+      if pX > the width of cd pCardName - pPadding then -- If we've come to the end of the row
          
-         ## Check for win         
+         put (pDiv / 2) + pPadding into pX -- Back to first column
+         put pY + pBtnDiameter + (pPadding / 1.6) into pY -- Next row
          
-         
-         
+      end if      
+      
+   end repeat
+   
+   -- Add relevant level details to each button   
+   repeat with x = 1 to tLevelsArrayLength
+      
+      put true into tLocked -- Set flag to true as default
+      put "level_number" & x into tLevelField -- Get name of field x
+      set the cLevel of fld tLevelField of group tSetName of cd pCardName to x -- Set the cLevel property to the corresponding level number. This will be used to go to the correct card when the button is tapped
+      
+      if pSetNumber < item 1 of the cFarthestPoint of the current stack then -- If this is a set already fully completed
+         put false into tLocked
+      else if pSetNumber is item 1 of the cFarthestPoint of the current stack and x < item 2 of the cFarthestPoint of the current stack + 2 then -- If this is the set to which player has progressed, and is before the level at which the player is now entitled to start the game
+         put false into tLocked
+      else if pSetNumber is sLastSetFullyCompleted + 1 and pSetNumber is item 1 of the cFarthestPoint of the current stack + 1 and x is 1 then -- If this is the first level in the "next" set, it should be unlocked
+         put false into tLocked
+      else if pSetNumber is 1 and x is 1 then -- Set 1, Level 1 is always unlocked
+         put false into tLocked
       end if
+      
+      put "btn_bg" & x into tGraphicName
+      if tLocked then -- If this level is locked
+         set the opaque of graphic tGraphicName of group tSetName of cd pCardName to true -- Set the opaque of the background graphic to full
+         if tSetPurchased then
+            set the blendLevel of graphic tGraphicName of group tSetName of cd pCardName to 61 -- Set blend level
+            set the blendLevel of fld tLevelField of group tSetName of cd pCardName to 28 -- Fade button value
+         end if
+         set the cUnlocked of fld tLevelField of group tSetName of cd pCardName to false -- Mark that this field is locked
+      else -- If the level is unlocked
+         -- Set blend level
+         set the blendLevel of fld tLevelField of group tSetName of cd pCardName to 0
+         set the blendLevel of graphic tGraphicName of group tSetName of cd pCardName to 0
+         
+         set the cUnlocked of fld tLevelField of group tSetName of cd pCardName to true -- Mark that this field is unlocked
+         put getLevelStarRating(pSetNumber, x) into tLevelStarRating
+         addStarRating tLevelStarRating, pCardName, pSetNumber, x, pPadding
+      end if
+      
+      -- Calculate the most recently fully completed set. NB: cFarthestPoint is the farthest point that has has been successfully completed. The current level will be one past this
+      if x is tLevelsArrayLength and not tLocked then -- If this is the last level in the set and it's unlocked         
+         put item 1 of the cFarthestPoint of the current stack into tFarthestSet -- The set with the farthest along level we've completed
+         put item 2 of the cFarthestPoint of the current stack into tFarthestLevel -- Farthest along level within said set
+         if tFarthestSet > pSetNumber or tFarthestSet is pSetNumber and tFarthestLevel is x then -- If the furthest set is above the set current being iterated over, or if the last level in said set is the farthest one to be completed, said set must be fully completed
+            put pSetNumber into sLastSetFullyCompleted -- Record that this set is complete
+         end if
+      end if
+      
+   end repeat
+   
+   -- If user has not purchased this set ************************
+   if pSetNumber is not among the lines of the cPurchasedSets of this stack then
+      copy group "unlock_set" of cd "elements" to group tSetName of cd pCardName -- Clone unlock group
+      set the loc of it to the loc of group tSetName of cd pCardName -- Center it
+      --set the layer of group "unlock_set" of group tSetName of cd pCardName to top -- Bring it to top
+      answer the layer of group "unlock_set" of group tSetName of cd pCardName
+      
+      -- set the width of graphic "bg_block" of group "unlock_set" of group tSetName of cd pCardName to the width of group tSetName of cd pCardName + 25 -- Set width to make sure width covers set so user can't click on levels
       
    end if
    
-end updateScreen
+end createSet
 
+on addStarRating pLevelStarRating, pCardName, pSetNumber, pLevelNumber, pPadding
+   
+   if pLevelStarRating is not empty then
+      
+      local tSetGroup, tLevelField, tStarGroupToClone
+      
+      put "set" & pSetNumber into tSetGroup -- The name of the set the field is in
+      put "level_number" & pLevelNumber into tLevelField -- The name of the field in said set
+      
+      put item 1 of the loc of field tLevelField of group tSetGroup of cd pCardName into tStarLocX -- Get x coord of where we're going to put start rating
+      put the bottom of field tLevelField of group tSetGroup of cd pCardName + (pPadding / 4) into tStarLocY -- Get y coord
+      
+      put pLevelStarRating & "_star" into tStarGroupToClone      
+      copy group tStarGroupToClone of cd pCardName to group tSetGroup of cd pCardName -- Clone relevant star rating group
+      set the loc of it to tStarLocX, tStarLocY
+   
+   end if
+   
+end addStarRating
+
+-- Gets star rating for specific level
+function getLevelStarRating pSetNumber, pLevelNumber
+   
+   local tPropertyName
+   
+   put "set" & pSetNumber & "_level" & pLevelNumber into tPropertyName -- Property name within cHighScores that we're looking for
+   return item 2 of the cHighScores[tPropertyName] of the current stack -- Return the star rating value of said property
+   
+end getLevelStarRating
+
+-- Controls creation of set/level selection groups (panels allowing the user to select which level and set they'd like to play)
+on configLevelSelectionCard pSetNumber
+   
+   -- Setup
+   put the cNumberOfSets of the current stack into tNumberOfSets -- Get number of sets   
+   put "level_select" into tCardName -- Get level-selection card name   
+   deleteControlsFromCard tCardName -- Delete any pre-existing controls from level-selection card
+   
+   repeat with tControl = 1 to the number of controls in cd "level_select_template" -- Go through all controls in template card
+      put the long name of control tControl of cd "level_select_template" into tControlName -- Get control name     
+      if "group" is in tControlName and word 1 of tControlName is "group" or "group" is not in tControlName then -- Don't want to clone children of groups twice
+         copy control tControl of cd "level_select_template" to cd tCardName -- Copy them over to the relevant actual level selection card
+      end if
+   end repeat
+   
+   put the width of the current stack into tCardWidth -- Get card width
+   put round(tCardWidth / 7) into tPadding -- Work out padding
+   put tCardWidth - (tPadding * 2) into tCardWidth -- New width of card minus padding
+   put round(tCardWidth / 4.5) into tBtnDiameter -- Calculate button diameter   
+   put tCardWidth / 4 into tDiv -- Width of 1/4 of card   
+   put (tDiv / 2) + tPadding into tX -- Work out starting point on X axis
+   put (tDiv / 2) + tPadding into tY -- And the Y
+   
+   put the customPropertySets of the current stack into tCustomPropertySets -- Get stack custom property sets
+   put 0 into sLastSetFullyCompleted -- Reset tracker
+   
+   repeat with i = 1 to tNumberOfSets
+      
+      createSet i, tCardName, tPadding, tBtnDiameter, tDiv, tX, tY, tCustomPropertySets -- Go create the set of levels
+      
+   end repeat
+   
+   positionSets tCardName, tCardWidth, tBtnDiameter -- Position the newly created groups of sets
+   set the visible of group "all_sets" of cd tCardName to false -- Hide group of sets
+   put the height of the current stack / 10 into tTopPos
+   put the height of the current stack - round(tTopPos / 2) into tBottomPos
+   set the loc of image "choose_a_level" of cd tCardName to item 1 of the loc of this card, tTopPos -- Position card title
+   
+   -- Position stop button
+   set the left of group "stop_btn" of cd tCardName to item 1 of the loc of this card - (the width of group "stop_btn" of cd tCardName / 2)
+   set the bottom of group "stop_btn" of cd tCardName to the bottom of this card - (the height of group "stop_btn" of cd tCardName / 2)
+   
+   set the visible of image "choose_a_level" of cd tCardName to false -- Hide card title
+   set the visible of group "stop_btn" of cd tCardName to false -- Hide stop button
+   
+end configLevelSelectionCard
+
+on positionSets pCardName, pCardWidth, pBtnDiameter
+   
+   local tNumberOfSets, tPrevGroupLocX, tPrevSetName, tSetName, tSet2GroupLocX, tDistanceBetweenLocs, tCurrentSet, tCurrentSetName, tCurrentSetLocX, tCardLocX, tDistanceToMove, tNewXLoc
+   
+   put the cNumberOfSets of the current stack into tNumberOfSets -- Get number of sets
+   
+   repeat with i = 1 to tNumberOfSets
+      
+      if i is 1 then -- Position first set
+         
+         set the loc of group "set1" of cd pCardName to the loc of this card
+         
+      else if i is 2 then -- Position set 2       
+         
+         put item 1 of the loc of group "set1" of cd pCardName into tPrevGroupLocX -- Get x loc of set 1         
+         put "set" & i into tSetName -- Get set name         
+         set the left of group tSetName of cd pCardName to the right of cd pCardName - (pBtnDiameter / 2) -- Position group so half of the first button of the next set is showing at the right of the card
+         --set the loc of group tSetName of cd pCardName to item 1 of the loc of group tSetName of cd pCardName, item 2 of the loc of this card -- Deal with group's Y position
+         set the loc of group tSetName of cd pCardName to item 1 of the loc of group tSetName of cd pCardName, item 2 of the loc of this cd -- Align on X axis         
+         set the top of group tSetName of cd pCardName to the top of group "set1" of cd pCardName -- Align on Y axis         
+         put item 1 of the loc of group tSetName of cd pCardName into tSet2GroupLocX -- Get x loc of set 2         
+         put tSet2GroupLocX - tPrevGroupLocX into tDistanceBetweenLocs -- Store distance between the locs of set 1 and set 2
+         
+      else
+         
+         put "set" & i - 1 into tPrevSetName -- Get previous set's name
+         put item 1 of the loc of group tPrevSetName of cd pCardName into tPrevGroupLocX -- Get x loc of previous set's group         
+         put "set" & i into tSetName -- Get set name
+         set the loc of group tSetName of cd pCardName to tPrevGroupLocX + tDistanceBetweenLocs, item 2 of the loc of this card -- Align on X axis relative to previous set
+         set the top of group tSetName of cd pCardName to the top of group "set1" of cd pCardName -- Align on Y axis
+         
+      end if
+      
+   end repeat
+   
+   -- Position current set's group at the centre
+   
+   put the cCurrentSet of this stack into tCurrentSet
+   put "set" & tCurrentSet into tCurrentSetName
+   
+   put item 1 of the loc of group tCurrentSetName of cd pCardName into tCurrentSetLocX -- Where is current set's x loc?
+   put item 1 of the loc of this card into tCardLocX -- What is card's x loc?
+   
+   if tCurrentSetLocX is not tCardLocX then -- If we're not on first set
+      
+      put tCurrentSetLocX - tCardLocX into tDistanceToMove -- Work out how much we need to move to position current set centrally
+      
+      put item 1 of the loc of group "all_sets" of cd pCardName - tDistanceToMove into tNewXLoc
+      set the loc of group "all_sets" of cd pCardName to tNewXLoc, item 2 of the loc of group "all_sets" of cd pCardName -- Move sets' parent group so that current set's group is centered
+      
+   end if
+   
+end positionSets
+
+-- Position and show in-game controls
+on showControlsOverlay
+   local tStartingPoint
+   
+   put "controls_overlay" into sCurrentAnimation
+   put round(item 2 of the loc of this card / 1.2) into tStartingPoint
+   
+   set the layer of btn "message_overlay" to top
+   set the layer of group "app_controls" to top
+   set the loc of group "app_controls" to item 1 of the loc of this card, tStartingPoint -- Place controls 1/3 of the way down the card
+   
+   -- Show message overlay
+   set the visible of btn "message_overlay" to true
+   set the blendLevel of btn "message_overlay" to 0 
+   
+   aeLockMoves
+   aeMoveTo the long id of group "app_controls", item 1 of the loc of this card, item 2 of the loc of this card, 700, "overshoot" -- Move controls
+   aeFadeIn the long id of group "app_controls", 500 -- Fade in controls
+   aeUnlockMoves
+   
+end showControlsOverlay
+
+on bringOverlayControlsToTop
+   
+   set the layer of group "app_controls" to top
+   
+end bringOverlayControlsToTop
+
+-- Hide just the controls in overlay
+on hideControlsInOverlay
+   local tStartingPoint
+   
+   put round(item 2 of the loc of this card / 1.2) into tStartingPoint
+   
+   aeMoveTo the long id of group "app_controls", item 1 of the loc of this card, tStartingPoint, 350 -- Move controls
+   aeFadeOut the long id of group "app_controls", 300 -- Fade out controls
+   
+end hideControlsInOverlay
+
+-- Hide message overlay
+on hideOverlay
+   
+   lock screen for visual effect
+   
+   set the visible of btn "message_overlay" to false
+   set the blendLevel of btn "message_overlay" to 100
+   
+   set the visible of group "app_controls" to false
+   set the blendLevel of group "app_controls" to 100
+   
+   unlock screen with dissolve very fast
+   
+end hideOverlay
+
+-- Hide in-game controls
+on hideInGameControlsOverlay
+   
+   aeLockMoves
+   aeFadeOut the long id of group "app_controls", 100 -- Fade in controls
+   aeUnlockMoves
+   
+   send "hideOverlay" to me in 120 millisecs
+   
+end hideInGameControlsOverlay
